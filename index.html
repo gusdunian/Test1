@@ -3,13 +3,13 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Angus' Working File</title>
+    <title>Angus Working File</title>
     <link rel="stylesheet" href="style.css" />
   </head>
   <body>
     <a class="skip-link" href="#main-content">Skip to main content</a>
     <header class="banner" role="banner">
-      <h1>Angus' Working File</h1>
+      <h1>Angus Working File</h1>
     </header>
 
     <main id="main-content" class="container" aria-live="polite">
@@ -18,10 +18,10 @@
           <div class="column-header">
             <h2 id="general-actions-heading">
               <svg class="header-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-                <path
-                  d="M9.4 16.6 5.8 13l1.4-1.4 2.2 2.2 7.4-7.4 1.4 1.4-8.8 8.8ZM4 4h12v2H4V4Zm0 7h2v2H4v-2Zm0 7h12v2H4v-2Z"
-                  fill="currentColor"
-                />
+                <path d="M4 6h16" />
+                <path d="M4 12h8" />
+                <path d="M4 18h8" />
+                <path d="m14 17 2 2 4-4" />
               </svg>
               <span>General action list</span>
             </h2>
@@ -50,10 +50,13 @@
           <div class="column-header">
             <h2 id="scheduling-heading">
               <svg class="header-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-                <path
-                  d="M7 2h2v2h6V2h2v2h3a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h3V2Zm13 8H4v10h16V10Zm-1-4H5v2h14V6Z"
-                  fill="currentColor"
-                />
+                <rect x="3" y="4" width="18" height="17" rx="2" ry="2" />
+                <path d="M8 2v4" />
+                <path d="M16 2v4" />
+                <path d="M3 9h18" />
+                <path d="M8 13h3" />
+                <path d="M13 13h3" />
+                <path d="M8 17h3" />
               </svg>
               <span>Scheduling actions</span>
             </h2>
@@ -82,10 +85,11 @@
           <div class="column-header">
             <h2 id="meeting-notes-heading">
               <svg class="header-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-                <path
-                  d="M5 3h11a2 2 0 0 1 2 2v1h1a2 2 0 0 1 2 2v12l-4-2-4 2-4-2-4 2V5a2 2 0 0 1 2-2Zm11 3V5H5v12.76l2-.98 4 2 4-2 2 .98V8h-1a2 2 0 0 1-2-2Zm1 2v8.53l2 .99V8h-2Z"
-                  fill="currentColor"
-                />
+                <path d="M6 3h9l3 3v15H6z" />
+                <path d="M15 3v3h3" />
+                <path d="M9 10h6" />
+                <path d="M9 14h6" />
+                <path d="M9 18h4" />
               </svg>
               <span>Meeting notes</span>
             </h2>
@@ -100,8 +104,16 @@
                 <label class="visually-hidden" for="meeting-date-input">Meeting date</label>
                 <input id="meeting-date-input" name="date" type="date" required />
 
-                <label class="visually-hidden" for="meeting-time-input">Meeting time</label>
-                <input id="meeting-time-input" name="time" type="time" required />
+                <label class="visually-hidden" for="meeting-hour-input">Meeting hour</label>
+                <select id="meeting-hour-input" name="hour" required></select>
+
+                <label class="visually-hidden" for="meeting-minute-input">Meeting minutes</label>
+                <select id="meeting-minute-input" name="minute" required>
+                  <option value="00">00</option>
+                  <option value="15">15</option>
+                  <option value="30">30</option>
+                  <option value="45">45</option>
+                </select>
               </div>
 
               <label class="visually-hidden" for="meeting-notes-editor">Meeting notes</label>
@@ -147,6 +159,49 @@
         <div class="modal-footer">
           <button id="modal-save-btn" type="button" class="subtle-button">Save</button>
         </div>
+      </div>
+    </div>
+
+    <div id="meeting-big-edit-modal" class="modal" hidden>
+      <div id="meeting-big-edit-backdrop" class="modal-backdrop"></div>
+      <div class="modal-dialog" role="dialog" aria-modal="true" aria-labelledby="meeting-big-edit-title">
+        <button id="meeting-big-edit-close" type="button" class="modal-close" aria-label="Close modal">×</button>
+        <h3 id="meeting-big-edit-title">Big edit meeting</h3>
+        <form id="meeting-big-edit-form" class="meeting-big-edit-form" autocomplete="off">
+          <label class="visually-hidden" for="meeting-big-edit-title-input">Meeting title</label>
+          <input id="meeting-big-edit-title-input" name="title" type="text" maxlength="200" required />
+
+          <div class="meeting-edit-datetime">
+            <label class="visually-hidden" for="meeting-big-edit-date-input">Meeting date</label>
+            <input id="meeting-big-edit-date-input" name="date" type="date" required />
+
+            <label class="visually-hidden" for="meeting-big-edit-hour-input">Meeting hour</label>
+            <select id="meeting-big-edit-hour-input" name="hour" required></select>
+
+            <label class="visually-hidden" for="meeting-big-edit-minute-input">Meeting minute</label>
+            <select id="meeting-big-edit-minute-input" name="minute" required>
+              <option value="00">00</option>
+              <option value="15">15</option>
+              <option value="30">30</option>
+              <option value="45">45</option>
+            </select>
+          </div>
+
+          <div class="rtf-toolbar" data-editor-target="meeting-big-edit-notes-editor" role="toolbar" aria-label="Big edit meeting notes formatting">
+            <button type="button" data-command="bold" aria-label="Bold">B</button>
+            <button type="button" data-command="italic" aria-label="Italic">I</button>
+            <button type="button" data-command="underline" aria-label="Underline">U</button>
+            <button type="button" data-command="insertUnorderedList" aria-label="Bulleted list">•</button>
+            <button type="button" data-command="insertOrderedList" aria-label="Numbered list">1.</button>
+          </div>
+
+          <label class="visually-hidden" for="meeting-big-edit-notes-editor">Meeting notes</label>
+          <div id="meeting-big-edit-notes-editor" class="modal-editor" contenteditable="true" role="textbox" aria-multiline="true"></div>
+
+          <div class="modal-footer">
+            <button type="submit" class="subtle-button">Save</button>
+          </div>
+        </form>
       </div>
     </div>
 
