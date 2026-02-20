@@ -104,8 +104,15 @@
                 <input id="meeting-time-input" name="time" type="time" required />
               </div>
 
-              <label class="visually-hidden" for="meeting-notes-input">Meeting notes</label>
-              <textarea id="meeting-notes-input" name="notes" rows="3" placeholder="Add notes" required></textarea>
+              <label class="visually-hidden" for="meeting-notes-editor">Meeting notes</label>
+              <div class="rtf-toolbar" data-editor-target="meeting-notes-editor" role="toolbar" aria-label="Meeting notes formatting">
+                <button type="button" data-command="bold" aria-label="Bold">B</button>
+                <button type="button" data-command="italic" aria-label="Italic">I</button>
+                <button type="button" data-command="underline" aria-label="Underline">U</button>
+                <button type="button" data-command="insertUnorderedList" aria-label="Bulleted list">•</button>
+                <button type="button" data-command="insertOrderedList" aria-label="Numbered list">1.</button>
+              </div>
+              <div id="meeting-notes-editor" class="meeting-notes-editor" contenteditable="true" role="textbox" aria-multiline="true" data-placeholder="Add notes"></div>
               <button type="submit" aria-label="Add meeting">+</button>
             </form>
           </div>
@@ -124,7 +131,14 @@
         <div class="modal-toolbar">
           <button id="modal-urgency-btn" type="button" class="icon-btn urgent-btn">!</button>
           <span id="modal-urgency-label" class="modal-urgency-label">None</span>
-          <span class="modal-shortcuts">Shortcuts: Ctrl/Cmd+B, Ctrl/Cmd+I, Ctrl/Cmd+U</span>
+          <div class="rtf-toolbar" data-editor-target="modal-text-input" role="toolbar" aria-label="Action formatting">
+            <button type="button" data-command="bold" aria-label="Bold">B</button>
+            <button type="button" data-command="italic" aria-label="Italic">I</button>
+            <button type="button" data-command="underline" aria-label="Underline">U</button>
+            <button type="button" data-command="insertUnorderedList" aria-label="Bulleted list">•</button>
+            <button type="button" data-command="insertOrderedList" aria-label="Numbered list">1.</button>
+          </div>
+          <span class="modal-shortcuts">Ctrl/Cmd+B/I/U, Ctrl/Cmd+Shift+8/7</span>
         </div>
         <div class="modal-body">
           <label class="visually-hidden" for="modal-text-input">Action text</label>

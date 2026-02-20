@@ -2,9 +2,11 @@
   const GENERAL_STORAGE_KEY = 'generalActions';
   const SCHEDULING_STORAGE_KEY = 'schedulingActions';
   const MEETING_STORAGE_KEY = 'meetingNotes';
+  const MEETING_UI_STORAGE_KEY = 'meetingNotesUIState';
   const NEXT_NUMBER_STORAGE_KEY = 'nextActionNumber';
   const LEGACY_STORAGE_KEY = 'generalActions.v1';
   const DEFAULT_NEXT_NUMBER = 137;
+  const ALLOWED_RICH_TAGS = new Set(['B', 'STRONG', 'I', 'EM', 'U', 'BR', 'P', 'UL', 'OL', 'LI']);
 
   const modal = document.getElementById('action-modal');
   const modalBackdrop = document.getElementById('action-modal-backdrop');
@@ -20,11 +22,12 @@
     items: [],
     expandedId: null,
     editingId: null,
+    uiState: { collapsedMonths: {}, collapsedWeeks: {} },
     form: document.getElementById('meeting-add-form'),
     titleInput: document.getElementById('meeting-title-input'),
     dateInput: document.getElementById('meeting-date-input'),
     timeInput: document.getElementById('meeting-time-input'),
-    notesInput: document.getElementById('meeting-notes-input'),
+    notesEditor: document.getElementById('meeting-notes-editor'),
     listEl: document.getElementById('meeting-list'),
   };
 
@@ -37,7 +40,6 @@
       input: document.getElementById('general-action-input'),
       listEl: document.getElementById('general-action-list'),
       clearBtn: document.getElementById('general-clear-completed-btn'),
-      name: 'General',
     },
     scheduling: {
       key: SCHEDULING_STORAGE_KEY,
@@ -47,22 +49,92 @@
       input: document.getElementById('scheduling-action-input'),
       listEl: document.getElementById('scheduling-action-list'),
       clearBtn: document.getElementById('scheduling-clear-completed-btn'),
-      name: 'Scheduling',
     },
   };
 
   let nextActionNumber = DEFAULT_NEXT_NUMBER;
   let activeModalContext = null;
 
-  function formatLocalDate(timestamp) {
-    if (!timestamp) {
-      return '--/--';
+  function escapeHtml(text) {
+    return String(text || '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
+  function textToRichHtml(text) {
+    const escaped = escapeHtml(String(text || '').trim());
+    if (!escaped) {
+      return '<p><br></p>';
+    }
+    return `<p>${escaped.replace(/\n/g, '<br>')}</p>`;
+  }
+
+  function sanitizeRichHtml(inputHtml) {
+    const template = document.createElement('template');
+    template.innerHTML = inputHtml || '';
+
+    function sanitizeNode(node) {
+      if (node.nodeType === Node.TEXT_NODE) {
+        return document.createTextNode(node.textContent || '');
+      }
+
+      if (node.nodeType !== Node.ELEMENT_NODE) {
+        return document.createDocumentFragment();
+      }
+
+      const tagName = node.tagName.toUpperCase();
+      const childFragment = document.createDocumentFragment();
+      Array.from(node.childNodes).forEach((child) => childFragment.appendChild(sanitizeNode(child)));
+
+      if (!ALLOWED_RICH_TAGS.has(tagName)) {
+        return childFragment;
+      }
+
+      const cleanEl = document.createElement(tagName.toLowerCase());
+      cleanEl.appendChild(childFragment);
+      return cleanEl;
     }
 
+    const output = document.createElement('div');
+    Array.from(template.content.childNodes).forEach((node) => output.appendChild(sanitizeNode(node)));
+    return output.innerHTML.trim();
+  }
+
+  function htmlToPlainText(html) {
+    const container = document.createElement('div');
+    container.innerHTML = html || '';
+    return (container.textContent || '').replace(/\s+/g, ' ').trim();
+  }
+
+  function ensureActionRichContent(action) {
+    if (!action) {
+      return;
+    }
+    if (!action.html && action.text) {
+      action.html = textToRichHtml(action.text);
+    }
+    action.html = sanitizeRichHtml(action.html || textToRichHtml(action.text || '')) || textToRichHtml(action.text || '');
+    action.text = htmlToPlainText(action.html);
+  }
+
+  function ensureMeetingRichContent(item) {
+    if (!item) {
+      return;
+    }
+    if (!item.notesHtml && item.notes) {
+      item.notesHtml = textToRichHtml(item.notes);
+    }
+    item.notesHtml = sanitizeRichHtml(item.notesHtml || textToRichHtml(item.notes || '')) || textToRichHtml(item.notes || '');
+    item.notesText = htmlToPlainText(item.notesHtml);
+  }
+
+  function formatLocalDate(timestamp) {
+    if (!timestamp) return '--/--';
     const date = new Date(timestamp);
-    const day = String(date.getDate()).padStart(2, '0');
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    return `${day}/${month}`;
+    return `${String(date.getDate()).padStart(2, '0')}/${String(date.getMonth() + 1).padStart(2, '0')}`;
   }
 
   function formatWeekday(date) {
@@ -77,8 +149,7 @@
     const date = new Date(dateInput);
     date.setHours(0, 0, 0, 0);
     const day = date.getDay();
-    const offset = day === 0 ? -6 : 1 - day;
-    date.setDate(date.getDate() + offset);
+    date.setDate(date.getDate() + (day === 0 ? -6 : 1 - day));
     return date;
   }
 
@@ -91,126 +162,72 @@
   }
 
   function parseLocalDateTime(dateValue, timeValue) {
-    if (!dateValue || !timeValue) {
-      return null;
-    }
-
+    if (!dateValue || !timeValue) return null;
     const [year, month, day] = dateValue.split('-').map(Number);
     const [hour, minute] = timeValue.split(':').map(Number);
-
-    if (![year, month, day, hour, minute].every(Number.isFinite)) {
-      return null;
-    }
-
+    if (![year, month, day, hour, minute].every(Number.isFinite)) return null;
     const parsed = new Date(year, month - 1, day, hour, minute, 0, 0);
     return Number.isNaN(parsed.getTime()) ? null : parsed;
   }
 
   function buildPrefix(action) {
-    if (action.deleted) {
-      return `<span class="prefix-mark">X</span>${formatLocalDate(action.deletedAt)}`;
-    }
-
-    if (action.completed) {
-      return `<span class="prefix-mark">C</span>${formatLocalDate(action.completedAt)}`;
-    }
-
+    if (action.deleted) return `<span class="prefix-mark">X</span>${formatLocalDate(action.deletedAt)}`;
+    if (action.completed) return `<span class="prefix-mark">C</span>${formatLocalDate(action.completedAt)}`;
     return formatLocalDate(action.createdAt);
-  }
-
-  function htmlToPlainText(html) {
-    const container = document.createElement('div');
-    container.innerHTML = html || '';
-    return (container.textContent || '')
-      .replace(/\s+/g, ' ')
-      .trim();
-  }
-
-  function sanitizeActionHtml(inputHtml) {
-    const template = document.createElement('template');
-    template.innerHTML = inputHtml || '';
-    const allowedTags = new Set(['B', 'STRONG', 'I', 'EM', 'U', 'BR', 'P', 'UL', 'OL', 'LI']);
-
-    function sanitizeNode(node) {
-      if (node.nodeType === Node.TEXT_NODE) {
-        return document.createTextNode(node.textContent || '');
-      }
-
-      if (node.nodeType !== Node.ELEMENT_NODE) {
-        return document.createDocumentFragment();
-      }
-
-      const tagName = node.tagName.toUpperCase();
-      const fragment = document.createDocumentFragment();
-      Array.from(node.childNodes).forEach((child) => {
-        fragment.appendChild(sanitizeNode(child));
-      });
-
-      if (!allowedTags.has(tagName)) {
-        return fragment;
-      }
-
-      const cleanEl = document.createElement(tagName.toLowerCase());
-      cleanEl.appendChild(fragment);
-      return cleanEl;
-    }
-
-    const output = document.createElement('div');
-    Array.from(template.content.childNodes).forEach((node) => {
-      output.appendChild(sanitizeNode(node));
-    });
-
-    return output.innerHTML.trim();
   }
 
   function normalizeAction(item) {
     const number = Number(item.number);
-    const textSource = typeof item.text === 'string' ? item.text : '';
-    const htmlSource = typeof item.html === 'string' ? item.html : '';
-    const sanitizedHtml = sanitizeActionHtml(htmlSource || textSource);
-    const text = (textSource.trim() || htmlToPlainText(sanitizedHtml)).trim();
-
-    if (!Number.isInteger(number) || !text) {
-      return null;
-    }
-
+    const text = typeof item.text === 'string' ? item.text.trim() : '';
+    const html = typeof item.html === 'string' ? item.html : '';
     const createdAt = Number(item.createdAt) || Date.now();
-    const completed = Boolean(item.completed);
-    const deleted = Boolean(item.deleted);
-    const urgency = Number.isInteger(item.urgency) ? Math.max(0, Math.min(2, item.urgency)) : (item.urgent ? 1 : 0);
+    const completedAt = Number(item.completedAt) || null;
+    const deletedAt = Number(item.deletedAt) || null;
+    const status = typeof item.status === 'string' ? item.status.toLowerCase() : '';
 
-    return {
+    if (!Number.isInteger(number) || (!text && !html)) return null;
+
+    const completed = Boolean(item.completed || completedAt || status === 'completed');
+    const deleted = Boolean(item.deleted || deletedAt || status === 'deleted');
+    const urgencyLevelRaw = Number.isInteger(item.urgencyLevel) ? item.urgencyLevel : Number.isInteger(item.urgency) ? item.urgency : item.urgent ? 1 : 0;
+    const urgencyLevel = Math.max(0, Math.min(2, urgencyLevelRaw));
+
+    const normalized = {
       number,
       text,
-      html: sanitizedHtml || text,
+      html,
       createdAt,
       completed,
       deleted,
-      urgency,
-      completedAt: completed ? Number(item.completedAt) || createdAt : null,
-      deletedAt: deleted ? Number(item.deletedAt) || createdAt : null,
+      urgencyLevel,
+      updatedAt: Number(item.updatedAt) || createdAt,
+      completedAt: completed ? completedAt || createdAt : null,
+      deletedAt: deleted ? deletedAt || createdAt : null,
     };
+
+    ensureActionRichContent(normalized);
+    return normalized;
   }
 
   function normalizeMeeting(item) {
     const title = typeof item.title === 'string' ? item.title.trim() : '';
-    const notes = typeof item.notes === 'string' ? item.notes : '';
     const date = new Date(item.datetime);
-    if (!title || Number.isNaN(date.getTime())) {
-      return null;
-    }
+    if (!title || Number.isNaN(date.getTime())) return null;
 
-    const createdAtRaw = item.createdAt ? new Date(item.createdAt) : null;
-    const updatedAtRaw = item.updatedAt ? new Date(item.updatedAt) : null;
-
-    return {
+    const normalized = {
       id: typeof item.id === 'string' && item.id ? item.id : `meeting-${Date.now()}-${Math.random().toString(16).slice(2)}`,
       title,
       datetime: date.toISOString(),
-      notes,
-      createdAt: createdAtRaw && !Number.isNaN(createdAtRaw.getTime()) ? createdAtRaw.toISOString() : null,
-      updatedAt: updatedAtRaw && !Number.isNaN(updatedAtRaw.getTime()) ? updatedAtRaw.toISOString() : null,
+      notesHtml: typeof item.notesHtml === 'string' ? item.notesHtml : '',
+      notes: typeof item.notes === 'string' ? item.notes : '',
+      notesText: typeof item.notesText === 'string' ? item.notesText : '',
+      createdAt: item.createdAt || null,
+      updatedAt: item.updatedAt || null,
     };
+
+    ensureMeetingRichContent(normalized);
+    if (!normalized.notesText) return null;
+    return normalized;
   }
 
   function saveList(list) {
@@ -221,6 +238,10 @@
     localStorage.setItem(MEETING_STORAGE_KEY, JSON.stringify(meeting.items));
   }
 
+  function saveMeetingUIState() {
+    localStorage.setItem(MEETING_UI_STORAGE_KEY, JSON.stringify(meeting.uiState));
+  }
+
   function saveNextNumber() {
     localStorage.setItem(NEXT_NUMBER_STORAGE_KEY, String(nextActionNumber));
   }
@@ -228,17 +249,7 @@
   function loadList(list) {
     try {
       const raw = localStorage.getItem(list.key);
-      if (!raw) {
-        list.actions = [];
-        return;
-      }
-
-      const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed)) {
-        list.actions = parsed.map(normalizeAction).filter(Boolean);
-      } else {
-        list.actions = [];
-      }
+      list.actions = raw ? (Array.isArray(JSON.parse(raw)) ? JSON.parse(raw).map(normalizeAction).filter(Boolean) : []) : [];
     } catch {
       list.actions = [];
     }
@@ -247,66 +258,62 @@
   function loadMeetings() {
     try {
       const raw = localStorage.getItem(MEETING_STORAGE_KEY);
-      if (!raw) {
-        meeting.items = [];
-        return;
-      }
-
-      const parsed = JSON.parse(raw);
-      meeting.items = Array.isArray(parsed) ? parsed.map(normalizeMeeting).filter(Boolean) : [];
+      meeting.items = raw ? (Array.isArray(JSON.parse(raw)) ? JSON.parse(raw).map(normalizeMeeting).filter(Boolean) : []) : [];
     } catch {
       meeting.items = [];
     }
   }
 
+  function loadMeetingUIState() {
+    try {
+      const parsed = JSON.parse(localStorage.getItem(MEETING_UI_STORAGE_KEY) || '{}');
+      meeting.uiState = {
+        collapsedMonths: parsed.collapsedMonths && typeof parsed.collapsedMonths === 'object' ? parsed.collapsedMonths : {},
+        collapsedWeeks: parsed.collapsedWeeks && typeof parsed.collapsedWeeks === 'object' ? parsed.collapsedWeeks : {},
+      };
+    } catch {
+      meeting.uiState = { collapsedMonths: {}, collapsedWeeks: {} };
+    }
+  }
+
   function migrateLegacyGeneralData() {
-    if (localStorage.getItem(GENERAL_STORAGE_KEY)) {
-      return;
-    }
-
+    if (localStorage.getItem(GENERAL_STORAGE_KEY)) return;
     const legacyRaw = localStorage.getItem(LEGACY_STORAGE_KEY);
-    if (!legacyRaw) {
-      return;
-    }
-
+    if (!legacyRaw) return;
     try {
       const parsed = JSON.parse(legacyRaw);
       if (Array.isArray(parsed.actions)) {
         lists.general.actions = parsed.actions.map(normalizeAction).filter(Boolean);
         saveList(lists.general);
       }
-
       if (!localStorage.getItem(NEXT_NUMBER_STORAGE_KEY) && Number.isInteger(parsed.nextNumber) && parsed.nextNumber > 0) {
         nextActionNumber = parsed.nextNumber;
         saveNextNumber();
       }
     } catch {
-      // Keep defaults if migration fails.
+      // keep defaults
     }
   }
 
   function loadData() {
     const storedNext = Number(localStorage.getItem(NEXT_NUMBER_STORAGE_KEY));
-    if (Number.isInteger(storedNext) && storedNext > 0) {
-      nextActionNumber = storedNext;
-    }
+    if (Number.isInteger(storedNext) && storedNext > 0) nextActionNumber = storedNext;
 
     migrateLegacyGeneralData();
-
     loadList(lists.general);
     loadList(lists.scheduling);
     loadMeetings();
+    loadMeetingUIState();
 
-    const highestNumber = Math.max(
-      DEFAULT_NEXT_NUMBER - 1,
-      ...lists.general.actions.map((item) => item.number),
-      ...lists.scheduling.actions.map((item) => item.number),
-    );
-
-    if (nextActionNumber <= highestNumber) {
-      nextActionNumber = highestNumber + 1;
+    const highest = Math.max(DEFAULT_NEXT_NUMBER - 1, ...lists.general.actions.map((i) => i.number), ...lists.scheduling.actions.map((i) => i.number));
+    if (nextActionNumber <= highest) {
+      nextActionNumber = highest + 1;
       saveNextNumber();
     }
+
+    saveList(lists.general);
+    saveList(lists.scheduling);
+    saveMeetings();
   }
 
   function sortNewestFirst(a, b) {
@@ -314,81 +321,42 @@
   }
 
   function getOrderedActions(list) {
-    const incompleteSuperUrgent = list.actions
-      .filter((item) => !item.deleted && !item.completed && item.urgency === 2)
-      .sort(sortNewestFirst);
-
-    const incompleteUrgent = list.actions
-      .filter((item) => !item.deleted && !item.completed && item.urgency === 1)
-      .sort(sortNewestFirst);
-
-    const incompleteNormal = list.actions
-      .filter((item) => !item.deleted && !item.completed && item.urgency === 0)
-      .sort(sortNewestFirst);
-
-    const completed = list.actions
-      .filter((item) => !item.deleted && item.completed)
-      .sort((a, b) => (b.completedAt || 0) - (a.completedAt || 0) || b.number - a.number);
-
-    const deleted = list.actions
-      .filter((item) => item.deleted)
-      .sort((a, b) => (b.deletedAt || 0) - (a.deletedAt || 0) || b.number - a.number);
-
-    return [...incompleteSuperUrgent, ...incompleteUrgent, ...incompleteNormal, ...completed, ...deleted];
+    const superUrgent = list.actions.filter((i) => !i.deleted && !i.completed && i.urgencyLevel === 2).sort(sortNewestFirst);
+    const urgent = list.actions.filter((i) => !i.deleted && !i.completed && i.urgencyLevel === 1).sort(sortNewestFirst);
+    const normal = list.actions.filter((i) => !i.deleted && !i.completed && i.urgencyLevel === 0).sort(sortNewestFirst);
+    const completed = list.actions.filter((i) => !i.deleted && i.completed).sort((a, b) => (b.completedAt || 0) - (a.completedAt || 0));
+    const deleted = list.actions.filter((i) => i.deleted).sort((a, b) => (b.deletedAt || 0) - (a.deletedAt || 0));
+    return [...superUrgent, ...urgent, ...normal, ...completed, ...deleted];
   }
 
   function updateRowTruncation(row) {
     const textEl = row.querySelector('.action-text');
     const toggleBtn = row.querySelector('.action-text-toggle');
-    if (!textEl || !toggleBtn) {
-      return;
-    }
-
-    const isTruncated = textEl.scrollWidth > textEl.clientWidth + 1;
-    toggleBtn.hidden = !isTruncated;
-  }
-
-  function updateAllTruncation() {
-    document.querySelectorAll('.action-item').forEach((row) => {
-      updateRowTruncation(row);
-    });
+    if (!textEl || !toggleBtn) return;
+    toggleBtn.hidden = !(textEl.scrollWidth > textEl.clientWidth + 1);
   }
 
   function getUrgencyLabel(action) {
-    if (action.urgency === 2) {
-      return 'Super urgent';
-    }
-    if (action.urgency === 1) {
-      return 'Urgent';
-    }
-    return 'None';
+    return action.urgencyLevel === 2 ? 'Super urgent' : action.urgencyLevel === 1 ? 'Urgent' : 'None';
   }
 
   function cycleUrgency(action) {
-    action.urgency = (action.urgency + 1) % 3;
+    action.urgencyLevel = (action.urgencyLevel + 1) % 3;
+    action.updatedAt = Date.now();
   }
 
   function updateModalUrgencyUI(action) {
-    const label = getUrgencyLabel(action);
-    modalUrgencyLabel.textContent = label;
-    modalUrgencyBtn.classList.remove('super');
-    modalUrgencyBtn.classList.toggle('active', action.urgency === 1);
-    if (action.urgency === 2) {
-      modalUrgencyBtn.classList.add('super');
-      modalUrgencyBtn.textContent = '!!';
-    } else if (action.urgency === 1) {
-      modalUrgencyBtn.textContent = '!';
-    } else {
-      modalUrgencyBtn.textContent = '!';
-    }
+    modalUrgencyLabel.textContent = getUrgencyLabel(action);
+    modalUrgencyBtn.classList.toggle('active', action.urgencyLevel === 1);
+    modalUrgencyBtn.classList.toggle('super', action.urgencyLevel === 2);
+    modalUrgencyBtn.textContent = action.urgencyLevel === 2 ? '!!' : '!';
     modalUrgencyBtn.disabled = action.deleted;
   }
 
   function renderList(list) {
     list.listEl.innerHTML = '';
-
-    const orderedActions = getOrderedActions(list);
-    if (!orderedActions.length) {
+    const ordered = getOrderedActions(list);
+    if (!ordered.length) {
       const empty = document.createElement('li');
       empty.className = 'coming-soon';
       empty.textContent = 'No actions yet. Add one to get started.';
@@ -396,31 +364,22 @@
       return;
     }
 
-    orderedActions.forEach((action) => {
+    ordered.forEach((action) => {
       const li = document.createElement('li');
       li.className = 'action-item';
-
-      if (action.completed) {
-        li.classList.add('completed');
-      }
-      if (action.deleted) {
-        li.classList.add('deleted');
-      }
-      if (action.urgency === 1 && !action.deleted && !action.completed) {
-        li.classList.add('urgent');
-      }
-      if (action.urgency === 2 && !action.deleted && !action.completed) {
-        li.classList.add('super-urgent');
-      }
+      if (action.completed) li.classList.add('completed');
+      if (action.deleted) li.classList.add('deleted');
+      if (!action.completed && !action.deleted && action.urgencyLevel === 1) li.classList.add('urgent');
+      if (!action.completed && !action.deleted && action.urgencyLevel === 2) li.classList.add('super-urgent');
 
       const checkbox = document.createElement('input');
       checkbox.type = 'checkbox';
       checkbox.checked = action.completed;
       checkbox.disabled = action.deleted;
-      checkbox.setAttribute('aria-label', `Mark action ${action.number} complete`);
       checkbox.addEventListener('change', () => {
         action.completed = checkbox.checked;
         action.completedAt = action.completed ? Date.now() : null;
+        action.updatedAt = Date.now();
         saveList(list);
         renderList(list);
       });
@@ -431,7 +390,6 @@
 
       const textWrap = document.createElement('div');
       textWrap.className = 'action-text-wrap';
-
       if (list.showDates) {
         const prefix = document.createElement('span');
         prefix.className = 'action-date-prefix';
@@ -442,9 +400,7 @@
       const text = document.createElement('span');
       text.className = 'action-text';
       text.textContent = action.text;
-      if (action.urgency === 2 && !action.deleted && !action.completed) {
-        text.classList.add('super-urgent-text');
-      }
+      if (action.urgencyLevel === 2 && !action.completed && !action.deleted) text.classList.add('super-urgent-text');
       textWrap.appendChild(text);
 
       const expandBtn = document.createElement('button');
@@ -452,8 +408,10 @@
       expandBtn.className = 'action-text-toggle';
       expandBtn.textContent = '+';
       expandBtn.hidden = true;
-      expandBtn.setAttribute('aria-label', `Expand action ${action.number} details`);
-      expandBtn.addEventListener('click', () => openModal(list, action));
+      expandBtn.addEventListener('click', (event) => {
+        event.stopPropagation();
+        openModal(list, action.number);
+      });
       textWrap.appendChild(expandBtn);
 
       const controls = document.createElement('div');
@@ -463,11 +421,11 @@
       urgentBtn.type = 'button';
       urgentBtn.className = 'icon-btn urgent-btn';
       urgentBtn.disabled = action.deleted;
-      urgentBtn.textContent = action.urgency === 2 ? '!!' : '!';
-      urgentBtn.classList.toggle('active', action.urgency === 1);
-      urgentBtn.classList.toggle('super', action.urgency === 2);
-      urgentBtn.setAttribute('aria-label', `Cycle urgency for action ${action.number}`);
-      urgentBtn.addEventListener('click', () => {
+      urgentBtn.textContent = action.urgencyLevel === 2 ? '!!' : '!';
+      urgentBtn.classList.toggle('active', action.urgencyLevel === 1);
+      urgentBtn.classList.toggle('super', action.urgencyLevel === 2);
+      urgentBtn.addEventListener('click', (event) => {
+        event.stopPropagation();
         cycleUrgency(action);
         saveList(list);
         renderList(list);
@@ -477,8 +435,8 @@
       deleteBtn.type = 'button';
       deleteBtn.className = 'icon-btn delete-btn';
       deleteBtn.textContent = action.deleted ? 'UD' : 'X';
-      deleteBtn.setAttribute('aria-label', action.deleted ? `Undelete action ${action.number}` : `Delete action ${action.number}`);
-      deleteBtn.addEventListener('click', () => {
+      deleteBtn.addEventListener('click', (event) => {
+        event.stopPropagation();
         if (action.deleted) {
           action.deleted = false;
           action.deletedAt = null;
@@ -486,15 +444,20 @@
           action.deleted = true;
           action.deletedAt = Date.now();
         }
-
+        action.updatedAt = Date.now();
         saveList(list);
         renderList(list);
       });
 
       controls.append(urgentBtn, deleteBtn);
       li.append(checkbox, number, textWrap, controls);
+      li.addEventListener('click', (event) => {
+        if (event.target.closest('.action-controls') || event.target.closest('.action-text-toggle') || event.target.closest('input[type="checkbox"]')) {
+          return;
+        }
+        openModal(list, action.number);
+      });
       list.listEl.appendChild(li);
-
       requestAnimationFrame(() => updateRowTruncation(li));
     });
   }
@@ -508,20 +471,20 @@
     getSortedMeetings().forEach((item) => {
       const date = new Date(item.datetime);
       const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-      const monthLabel = date.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
-      const monthStart = new Date(date.getFullYear(), date.getMonth(), 1).getTime();
-
       if (!byMonth.has(monthKey)) {
-        byMonth.set(monthKey, { monthKey, monthLabel, monthStart, weeks: new Map() });
+        byMonth.set(monthKey, {
+          monthKey,
+          monthLabel: date.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' }),
+          monthStart: new Date(date.getFullYear(), date.getMonth(), 1).getTime(),
+          weeks: new Map(),
+        });
       }
-
       const month = byMonth.get(monthKey);
       const monday = getWeekCommencingMonday(date);
       const weekKey = dateToDateValue(monday);
       if (!month.weeks.has(weekKey)) {
         month.weeks.set(weekKey, { weekKey, weekStart: monday.getTime(), weekLabel: `W/C ${formatLocalDate(monday)}`, meetings: [] });
       }
-
       month.weeks.get(weekKey).meetings.push(item);
     });
 
@@ -535,39 +498,6 @@
       }));
   }
 
-  function renderNotesContent(container, notes) {
-    const lines = notes.split('\n').map((line) => line.trim()).filter(Boolean);
-    const allBullets = lines.length > 0 && lines.every((line) => /^(- |\* |• )/.test(line));
-
-    if (!lines.length) {
-      const p = document.createElement('p');
-      p.textContent = 'No notes added.';
-      container.appendChild(p);
-      return;
-    }
-
-    if (allBullets) {
-      const ul = document.createElement('ul');
-      lines.forEach((line) => {
-        const li = document.createElement('li');
-        li.textContent = line.replace(/^(- |\* |• )/, '').trim();
-        ul.appendChild(li);
-      });
-      container.appendChild(ul);
-      return;
-    }
-
-    notes
-      .split(/\n{2,}/)
-      .map((part) => part.trim())
-      .filter(Boolean)
-      .forEach((paragraph) => {
-        const p = document.createElement('p');
-        p.textContent = paragraph;
-        container.appendChild(p);
-      });
-  }
-
   function renderMeetingExpanded(item) {
     const detail = document.createElement('div');
     detail.className = 'meeting-details';
@@ -575,7 +505,6 @@
     if (meeting.editingId === item.id) {
       const editForm = document.createElement('form');
       editForm.className = 'meeting-edit-form';
-
       const date = new Date(item.datetime);
 
       const titleInput = document.createElement('input');
@@ -586,31 +515,34 @@
 
       const dateTimeWrap = document.createElement('div');
       dateTimeWrap.className = 'meeting-edit-datetime';
-
       const dateInput = document.createElement('input');
       dateInput.type = 'date';
       dateInput.required = true;
       dateInput.value = dateToDateValue(date);
-
       const timeInput = document.createElement('input');
       timeInput.type = 'time';
       timeInput.required = true;
       timeInput.value = dateToTimeValue(date);
-
       dateTimeWrap.append(dateInput, timeInput);
 
-      const notesInput = document.createElement('textarea');
-      notesInput.required = true;
-      notesInput.value = item.notes;
+      const toolbar = document.createElement('div');
+      toolbar.className = 'rtf-toolbar';
+      const editorId = `meeting-edit-${item.id}`;
+      toolbar.dataset.editorTarget = editorId;
+      toolbar.innerHTML = '<button type="button" data-command="bold">B</button><button type="button" data-command="italic">I</button><button type="button" data-command="underline">U</button><button type="button" data-command="insertUnorderedList">•</button><button type="button" data-command="insertOrderedList">1.</button>';
+
+      const notesEditor = document.createElement('div');
+      notesEditor.id = editorId;
+      notesEditor.className = 'modal-editor';
+      notesEditor.contentEditable = 'true';
+      notesEditor.innerHTML = item.notesHtml;
 
       const controls = document.createElement('div');
       controls.className = 'meeting-edit-controls';
-
       const saveBtn = document.createElement('button');
       saveBtn.type = 'submit';
       saveBtn.className = 'subtle-button';
       saveBtn.textContent = 'Save';
-
       const cancelBtn = document.createElement('button');
       cancelBtn.type = 'button';
       cancelBtn.className = 'subtle-button';
@@ -621,31 +553,29 @@
       });
 
       controls.append(saveBtn, cancelBtn);
-      editForm.append(titleInput, dateTimeWrap, notesInput, controls);
+      editForm.append(titleInput, dateTimeWrap, toolbar, notesEditor, controls);
       detail.appendChild(editForm);
+      bindRtfToolbar(toolbar);
+      bindEditorShortcuts(notesEditor);
 
       editForm.addEventListener('submit', (event) => {
         event.preventDefault();
         const parsed = parseLocalDateTime(dateInput.value, timeInput.value);
-        if (!parsed) {
-          return;
-        }
-
+        if (!parsed) return;
         const title = titleInput.value.trim();
-        const notes = notesInput.value.trim();
-        if (!title || !notes) {
-          return;
-        }
+        const notesHtml = sanitizeRichHtml(notesEditor.innerHTML);
+        const notesText = htmlToPlainText(notesHtml);
+        if (!title || !notesText) return;
 
         item.title = title;
-        item.notes = notes;
         item.datetime = parsed.toISOString();
+        item.notesHtml = notesHtml;
+        item.notesText = notesText;
         item.updatedAt = new Date().toISOString();
         saveMeetings();
         meeting.editingId = null;
         renderMeetings();
       });
-
       return detail;
     }
 
@@ -655,7 +585,7 @@
 
     const notesWrap = document.createElement('div');
     notesWrap.className = 'meeting-notes-rendered';
-    renderNotesContent(notesWrap, item.notes);
+    notesWrap.innerHTML = item.notesHtml;
 
     const controls = document.createElement('div');
     controls.className = 'meeting-detail-controls';
@@ -674,19 +604,10 @@
     deleteBtn.className = 'meeting-link-btn delete';
     deleteBtn.textContent = 'Delete';
     deleteBtn.addEventListener('click', () => {
-      const confirmed = window.confirm(`Delete meeting: "${item.title}"?`);
-      if (!confirmed) {
-        return;
-      }
-
+      if (!window.confirm(`Delete meeting: "${item.title}"?`)) return;
       meeting.items = meeting.items.filter((entry) => entry.id !== item.id);
-      if (meeting.expandedId === item.id) {
-        meeting.expandedId = null;
-      }
-      if (meeting.editingId === item.id) {
-        meeting.editingId = null;
-      }
-
+      if (meeting.expandedId === item.id) meeting.expandedId = null;
+      if (meeting.editingId === item.id) meeting.editingId = null;
       saveMeetings();
       renderMeetings();
     });
@@ -698,7 +619,6 @@
 
   function renderMeetings() {
     meeting.listEl.innerHTML = '';
-
     if (!meeting.items.length) {
       const empty = document.createElement('p');
       empty.className = 'meeting-empty';
@@ -707,63 +627,83 @@
       return;
     }
 
-    const monthGroups = getMeetingGroups();
+    getMeetingGroups().forEach((month) => {
+      const monthSection = document.createElement('section');
+      monthSection.className = 'meeting-month-group';
 
-    monthGroups.forEach((month) => {
-      const monthEl = document.createElement('section');
-      monthEl.className = 'meeting-month-group';
+      const monthHeaderRow = document.createElement('div');
+      monthHeaderRow.className = 'meeting-header-row';
+      const monthToggle = document.createElement('button');
+      monthToggle.type = 'button';
+      monthToggle.className = 'collapse-toggle';
+      const monthCollapsed = Boolean(meeting.uiState.collapsedMonths[month.monthKey]);
+      monthToggle.textContent = monthCollapsed ? '+' : '–';
+      monthToggle.addEventListener('click', () => {
+        meeting.uiState.collapsedMonths[month.monthKey] = !monthCollapsed;
+        saveMeetingUIState();
+        renderMeetings();
+      });
 
       const monthHeader = document.createElement('h3');
       monthHeader.className = 'meeting-month-header';
       monthHeader.textContent = month.monthLabel;
-      monthEl.appendChild(monthHeader);
+      monthHeaderRow.append(monthToggle, monthHeader);
+      monthSection.appendChild(monthHeaderRow);
+
+      const monthBody = document.createElement('div');
+      monthBody.hidden = monthCollapsed;
 
       month.weeks.forEach((week) => {
-        const weekEl = document.createElement('section');
-        weekEl.className = 'meeting-week-group';
+        const weekSection = document.createElement('section');
+        weekSection.className = 'meeting-week-group';
+
+        const weekHeaderRow = document.createElement('div');
+        weekHeaderRow.className = 'meeting-header-row';
+        const weekToggle = document.createElement('button');
+        weekToggle.type = 'button';
+        weekToggle.className = 'collapse-toggle';
+        const weekMapKey = `${month.monthKey}:${week.weekKey}`;
+        const weekCollapsed = Boolean(meeting.uiState.collapsedWeeks[weekMapKey]);
+        weekToggle.textContent = weekCollapsed ? '+' : '–';
+        weekToggle.addEventListener('click', () => {
+          meeting.uiState.collapsedWeeks[weekMapKey] = !weekCollapsed;
+          saveMeetingUIState();
+          renderMeetings();
+        });
 
         const weekHeader = document.createElement('h4');
         weekHeader.className = 'meeting-week-header';
         weekHeader.textContent = week.weekLabel;
+        weekHeaderRow.append(weekToggle, weekHeader);
 
         const meetingsEl = document.createElement('ul');
         meetingsEl.className = 'meeting-items';
+        meetingsEl.hidden = weekCollapsed;
 
         week.meetings.forEach((item) => {
           const li = document.createElement('li');
           li.className = 'meeting-item';
-
           const date = new Date(item.datetime);
           const summary = document.createElement('button');
           summary.type = 'button';
           summary.className = 'meeting-summary';
           summary.textContent = `${formatWeekday(date)} ${formatLocalDate(date)} ${formatTime24(date)} — ${item.title}`;
-
           summary.addEventListener('click', () => {
-            if (meeting.expandedId === item.id) {
-              meeting.expandedId = null;
-              meeting.editingId = null;
-            } else {
-              meeting.expandedId = item.id;
-              meeting.editingId = null;
-            }
+            meeting.expandedId = meeting.expandedId === item.id ? null : item.id;
+            meeting.editingId = null;
             renderMeetings();
           });
-
           li.appendChild(summary);
-
-          if (meeting.expandedId === item.id) {
-            li.appendChild(renderMeetingExpanded(item));
-          }
-
+          if (meeting.expandedId === item.id) li.appendChild(renderMeetingExpanded(item));
           meetingsEl.appendChild(li);
         });
 
-        weekEl.append(weekHeader, meetingsEl);
-        monthEl.appendChild(weekEl);
+        weekSection.append(weekHeaderRow, meetingsEl);
+        monthBody.appendChild(weekSection);
       });
 
-      meeting.listEl.appendChild(monthEl);
+      monthSection.appendChild(monthBody);
+      meeting.listEl.appendChild(monthSection);
     });
   }
 
@@ -775,46 +715,42 @@
 
   function addAction(list, rawText) {
     const text = rawText.trim();
-    if (!text) {
-      return;
-    }
-
+    if (!text) return;
     list.actions.unshift({
       number: nextActionNumber,
       text,
+      html: textToRichHtml(text),
       createdAt: Date.now(),
+      updatedAt: Date.now(),
       completed: false,
       deleted: false,
-      html: text,
-      urgency: 0,
+      urgencyLevel: 0,
       completedAt: null,
       deletedAt: null,
     });
-
     nextActionNumber += 1;
     saveList(list);
     saveNextNumber();
     renderList(list);
   }
 
-  function addMeeting(titleRaw, dateRaw, timeRaw, notesRaw) {
+  function addMeeting(titleRaw, dateRaw, timeRaw, notesHtmlRaw) {
     const title = titleRaw.trim();
-    const notes = notesRaw.trim();
     const parsed = parseLocalDateTime(dateRaw, timeRaw);
-    if (!title || !notes || !parsed) {
-      return false;
-    }
+    const notesHtml = sanitizeRichHtml(notesHtmlRaw);
+    const notesText = htmlToPlainText(notesHtml);
+    if (!title || !notesText || !parsed) return false;
 
     const nowIso = new Date().toISOString();
     meeting.items.push({
       id: `meeting-${Date.now()}-${Math.random().toString(16).slice(2)}`,
       title,
       datetime: parsed.toISOString(),
-      notes,
+      notesHtml,
+      notesText,
       createdAt: nowIso,
       updatedAt: nowIso,
     });
-
     saveMeetings();
     renderMeetings();
     return true;
@@ -824,43 +760,37 @@
     const created = `Created: ${formatLocalDate(action.createdAt)}`;
     const completed = action.completed ? `Completed: ${formatLocalDate(action.completedAt)}` : null;
     const deleted = action.deleted ? `Deleted: ${formatLocalDate(action.deletedAt)}` : null;
-
-    let primary = created;
-    if (deleted) {
-      primary = deleted;
-    } else if (completed) {
-      primary = completed;
-    }
-
-    const extras = [created];
-    if (completed) {
-      extras.push(completed);
-    }
-    if (deleted) {
-      extras.push(deleted);
-    }
-
-    const urgency = action.urgency === 2 ? 'Super urgent' : action.urgency === 1 ? 'Urgent' : null;
-    return urgency ? `${primary} • ${extras.join(' • ')} • ${urgency}` : `${primary} • ${extras.join(' • ')}`;
+    const urgency = action.urgencyLevel === 2 ? 'Super urgent' : action.urgencyLevel === 1 ? 'Urgent' : null;
+    return [deleted || completed || created, created, completed, deleted, urgency].filter(Boolean).join(' • ');
   }
 
-  function openModal(list, action) {
-    activeModalContext = { list, action };
+  function findActionByNumber(list, number) {
+    return list.actions.find((item) => item.number === number) || null;
+  }
+
+  function getActiveModalAction() {
+    if (!activeModalContext) return null;
+    return findActionByNumber(activeModalContext.list, activeModalContext.actionNumber);
+  }
+
+  function openModal(list, actionNumber) {
+    const action = findActionByNumber(list, actionNumber);
+    if (!action) return;
+    ensureActionRichContent(action);
+    activeModalContext = { list, actionNumber };
     modalTitle.textContent = `${action.number}`;
     modalStatus.textContent = modalStatusText(action);
-    modalTextInput.innerHTML = sanitizeActionHtml(action.html || action.text);
+    modalTextInput.innerHTML = action.html;
     updateModalUrgencyUI(action);
     modal.hidden = false;
     modalTextInput.focus();
   }
 
   function persistModalChanges() {
-    if (!activeModalContext) {
-      return false;
-    }
+    const action = getActiveModalAction();
+    if (!action || !activeModalContext) return false;
 
-    const { list, action } = activeModalContext;
-    const html = sanitizeActionHtml(modalTextInput.innerHTML);
+    const html = sanitizeRichHtml(modalTextInput.innerHTML);
     const text = htmlToPlainText(html);
     if (!text) {
       modalTextInput.focus();
@@ -869,8 +799,9 @@
 
     action.html = html;
     action.text = text;
-    saveList(list);
-    renderList(list);
+    action.updatedAt = Date.now();
+    saveList(activeModalContext.list);
+    renderList(activeModalContext.list);
     return true;
   }
 
@@ -882,13 +813,40 @@
     activeModalContext = null;
   }
 
-  function saveModalChanges() {
-    const saved = persistModalChanges();
-    if (!saved) {
-      return;
-    }
+  function execEditorCommand(editorEl, command) {
+    editorEl.focus();
+    document.execCommand(command, false);
+  }
 
-    closeModal(true);
+  function bindEditorShortcuts(editorEl) {
+    editorEl.addEventListener('keydown', (event) => {
+      if (!(event.ctrlKey || event.metaKey)) return;
+      const key = event.key.toLowerCase();
+      if (event.shiftKey && key === '8') {
+        event.preventDefault();
+        execEditorCommand(editorEl, 'insertUnorderedList');
+        return;
+      }
+      if (event.shiftKey && key === '7') {
+        event.preventDefault();
+        execEditorCommand(editorEl, 'insertOrderedList');
+        return;
+      }
+      const command = key === 'b' ? 'bold' : key === 'i' ? 'italic' : key === 'u' ? 'underline' : null;
+      if (!command) return;
+      event.preventDefault();
+      execEditorCommand(editorEl, command);
+    });
+  }
+
+  function bindRtfToolbar(toolbarEl) {
+    toolbarEl.addEventListener('click', (event) => {
+      const button = event.target.closest('button[data-command]');
+      if (!button) return;
+      const editor = document.getElementById(toolbarEl.dataset.editorTarget);
+      if (!editor) return;
+      execEditorCommand(editor, button.dataset.command);
+    });
   }
 
   function bindListEvents(list) {
@@ -907,7 +865,11 @@
     });
 
     list.clearBtn.addEventListener('click', () => {
-      list.actions = list.actions.filter((item) => item.deleted || !item.completed);
+      list.actions = list.actions.filter((item) => {
+        const isCompleted = item.completed || Boolean(item.completedAt) || item.status === 'completed';
+        const isDeleted = item.deleted || Boolean(item.deletedAt) || item.status === 'deleted';
+        return !(isCompleted || isDeleted);
+      });
       saveList(list);
       renderList(list);
     });
@@ -916,20 +878,11 @@
   function bindMeetingEvents() {
     meeting.form.addEventListener('submit', (event) => {
       event.preventDefault();
-      const added = addMeeting(meeting.titleInput.value, meeting.dateInput.value, meeting.timeInput.value, meeting.notesInput.value);
-      if (!added) {
-        return;
-      }
-
+      const added = addMeeting(meeting.titleInput.value, meeting.dateInput.value, meeting.timeInput.value, meeting.notesEditor.innerHTML);
+      if (!added) return;
       meeting.form.reset();
+      meeting.notesEditor.innerHTML = '';
       meeting.titleInput.focus();
-    });
-
-    meeting.titleInput.addEventListener('keydown', (event) => {
-      if (event.key === 'Enter') {
-        event.preventDefault();
-        meeting.dateInput.focus();
-      }
     });
 
     meeting.form.addEventListener('keydown', (event) => {
@@ -940,39 +893,32 @@
     });
   }
 
-  modalSaveBtn.addEventListener('click', saveModalChanges);
+  document.querySelectorAll('.rtf-toolbar').forEach(bindRtfToolbar);
+  bindEditorShortcuts(modalTextInput);
+  bindEditorShortcuts(meeting.notesEditor);
+
+  modalSaveBtn.addEventListener('click', () => {
+    if (persistModalChanges()) closeModal(true);
+  });
+
   modalUrgencyBtn.addEventListener('click', () => {
-    if (!activeModalContext || activeModalContext.action.deleted) {
-      return;
-    }
-
-    cycleUrgency(activeModalContext.action);
-    updateModalUrgencyUI(activeModalContext.action);
+    const action = getActiveModalAction();
+    if (!action || !activeModalContext || action.deleted) return;
+    cycleUrgency(action);
+    saveList(activeModalContext.list);
+    modalStatus.textContent = modalStatusText(action);
+    updateModalUrgencyUI(action);
+    renderList(activeModalContext.list);
   });
-  modalTextInput.addEventListener('keydown', (event) => {
-    if (!(event.ctrlKey || event.metaKey)) {
-      return;
-    }
 
-    const key = event.key.toLowerCase();
-    if (!['b', 'i', 'u'].includes(key)) {
-      return;
-    }
-
-    event.preventDefault();
-    const command = key === 'b' ? 'bold' : key === 'i' ? 'italic' : 'underline';
-    document.execCommand(command, false);
-  });
-  modalCloseBtn.addEventListener('click', closeModal);
-  modalBackdrop.addEventListener('click', closeModal);
+  modalCloseBtn.addEventListener('click', () => closeModal());
+  modalBackdrop.addEventListener('click', () => closeModal());
   window.addEventListener('keydown', (event) => {
-    if (!modal.hidden && event.key === 'Escape') {
-      closeModal();
-    }
+    if (!modal.hidden && event.key === 'Escape') closeModal();
   });
 
   window.addEventListener('resize', () => {
-    updateAllTruncation();
+    document.querySelectorAll('.action-item').forEach((row) => updateRowTruncation(row));
   });
 
   bindListEvents(lists.general);
