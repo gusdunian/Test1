@@ -33,29 +33,44 @@ body { margin: 0; font-family: Inter, -apple-system, BlinkMacSystemFont, 'Segoe 
 }
 
 .cloud-panel {
-  display: inline-flex;
+  display: grid;
+  justify-items: end;
+  gap: 0.5rem;
+  width: min(100%, 44rem);
+}
+
+.cloud-title {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.cloud-controls {
+  width: 100%;
+  display: flex;
   align-items: center;
-  gap: 0.35rem;
+  gap: 0.45rem;
   flex-wrap: wrap;
   justify-content: flex-end;
 }
 
 .cloud-panel input {
-  width: 11rem;
+  width: 12.5rem;
   border: 1px solid #cbd5e1;
-  border-radius: 6px;
-  padding: 0.3rem 0.45rem;
+  border-radius: 8px;
+  padding: 0.45rem 0.6rem;
   font: inherit;
-  font-size: 0.8rem;
+  font-size: 0.9rem;
 }
 
 .cloud-btn {
   border: 1px solid #cbd5e1;
   background: #fff;
   color: #334155;
-  border-radius: 6px;
-  font-size: 0.76rem;
-  padding: 0.25rem 0.45rem;
+  border-radius: 8px;
+  font-size: 0.88rem;
+  font-weight: 600;
+  padding: 0.45rem 0.7rem;
 }
 
 .cloud-btn:hover,
@@ -70,9 +85,100 @@ body { margin: 0; font-family: Inter, -apple-system, BlinkMacSystemFont, 'Segoe 
 }
 
 .cloud-status {
-  min-width: 10rem;
-  font-size: 0.74rem;
-  color: #475569;
+  width: 100%;
+  min-height: 2.45rem;
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  border-radius: 10px;
+  border: 1px solid transparent;
+  font-size: 0.95rem;
+  font-weight: 600;
+  padding: 0.55rem 0.75rem;
+}
+
+.cloud-status::before {
+  content: '';
+  width: 0.6rem;
+  height: 0.6rem;
+  border-radius: 999px;
+  flex: 0 0 auto;
+  background: currentColor;
+}
+
+.cloud-status-info {
+  background: #f8fafc;
+  border-color: #cbd5e1;
+  color: #0f172a;
+}
+
+.cloud-status-success {
+  background: #ecfdf5;
+  border-color: #86efac;
+  color: #14532d;
+}
+
+.cloud-status-warning {
+  background: #fffbeb;
+  border-color: #fcd34d;
+  color: #78350f;
+}
+
+.cloud-status-error {
+  background: #fef2f2;
+  border-color: #fca5a5;
+  color: #7f1d1d;
+}
+
+.cloud-status-loading {
+  background: #eff6ff;
+  border-color: #93c5fd;
+  color: #1e3a8a;
+}
+
+.cloud-status-loading::before {
+  width: 0.75rem;
+  height: 0.75rem;
+  border: 2px solid currentColor;
+  border-top-color: transparent;
+  border-radius: 999px;
+  background: transparent;
+  animation: cloud-spin 0.8s linear infinite;
+}
+
+.toast-container {
+  position: fixed;
+  right: 1rem;
+  bottom: 1rem;
+  z-index: 60;
+  display: grid;
+  gap: 0.45rem;
+  width: min(22rem, calc(100vw - 2rem));
+  pointer-events: none;
+}
+
+.toast {
+  border-radius: 9px;
+  border: 1px solid transparent;
+  font-size: 0.88rem;
+  font-weight: 600;
+  padding: 0.55rem 0.7rem;
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.2);
+  animation: toast-in 0.18s ease-out;
+}
+
+.toast-info { background: #f8fafc; color: #0f172a; border-color: #cbd5e1; }
+.toast-success { background: #ecfdf5; color: #14532d; border-color: #86efac; }
+.toast-warning { background: #fffbeb; color: #78350f; border-color: #fcd34d; }
+.toast-error { background: #fef2f2; color: #7f1d1d; border-color: #fca5a5; }
+
+@keyframes cloud-spin {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes toast-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 .container { width: 100%; margin: 1rem 0; padding: 0 1.25rem 2rem; }
@@ -187,10 +293,20 @@ button:focus-visible, textarea:focus-visible, input:focus-visible, [contentedita
   }
 
   .cloud-panel {
+    justify-items: stretch;
+  }
+
+  .cloud-controls {
     justify-content: flex-start;
   }
 
   .cloud-panel input {
     width: min(100%, 15rem);
+  }
+
+  .toast-container {
+    right: 0.65rem;
+    bottom: 0.65rem;
+    width: calc(100vw - 1.3rem);
   }
 }

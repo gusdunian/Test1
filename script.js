@@ -59,8 +59,10 @@
     pushBtn: document.getElementById('cloud-push-btn'),
     pullBtn: document.getElementById('cloud-pull-btn'),
     statusEl: document.getElementById('cloud-status'),
+    toastContainer: document.getElementById('toast-container'),
     signedInUser: null,
     busy: false,
+    loadingContext: '',
   };
 
   const lists = {
@@ -390,13 +392,43 @@
     if (!value) return null;
     const parsed = new Date(value);
     if (Number.isNaN(parsed.getTime())) return null;
-    return parsed.toLocaleString('en-GB', { hour12: false });
+    return parsed.toLocaleTimeString('en-GB', { hour12: false });
   }
 
-  function setCloudStatus(message, isError = false) {
+  function showToast(message, type = 'info') {
+    if (!cloud.toastContainer || !message) return;
+    const toast = document.createElement('div');
+    toast.className = `toast toast-${type}`;
+    toast.textContent = message;
+    cloud.toastContainer.appendChild(toast);
+    window.setTimeout(() => {
+      toast.remove();
+    }, 3600);
+  }
+
+  function setStatus(message, type = 'info') {
     if (!cloud.statusEl) return;
-    cloud.statusEl.textContent = message;
-    cloud.statusEl.style.color = isError ? '#b91c1c' : '#475569';
+    const normalizedType = ['info', 'success', 'warning', 'error', 'loading'].includes(type) ? type : 'info';
+    const nextMessage = message || 'Ready';
+    cloud.statusEl.textContent = nextMessage;
+    cloud.statusEl.className = `cloud-status cloud-status-${normalizedType}`;
+    if (normalizedType !== 'loading') {
+      showToast(nextMessage, normalizedType === 'warning' ? 'warning' : normalizedType);
+    }
+  }
+
+  function setLoading(isLoading, context = '') {
+    cloud.busy = Boolean(isLoading);
+    cloud.loadingContext = context || '';
+    updateCloudUi();
+
+    if (!isLoading) return;
+    const label = {
+      signIn: 'Signing in…',
+      push: 'Pushing to cloud…',
+      pull: 'Pulling from cloud…',
+    }[context] || 'Loading…';
+    setStatus(label, 'loading');
   }
 
   function updateCloudUi() {
@@ -409,30 +441,18 @@
     cloud.signOutBtn.disabled = cloud.busy;
     cloud.emailInput.disabled = cloud.busy || signedIn;
 
-    if (cloud.busy) return;
-    if (signedIn) {
-      const email = cloud.signedInUser.email || 'account';
-      setCloudStatus(`Signed in as ${email}`);
-      return;
+    if (cloud.busy || cloud.loadingContext) return;
+    if (!cloud.statusEl.textContent.trim()) {
+      setStatus('Ready', 'info');
     }
-    setCloudStatus('Signed out');
   }
 
   async function refreshSignedInUser() {
     const { data } = await sb.auth.getUser();
     cloud.signedInUser = data?.user || null;
     updateCloudUi();
-  }
-
-  async function withCloudBusy(task) {
-    if (cloud.busy) return;
-    cloud.busy = true;
-    updateCloudUi();
-    try {
-      await task();
-    } finally {
-      cloud.busy = false;
-      updateCloudUi();
+    if (!cloud.signedInUser) {
+      setStatus('Signed out', 'info');
     }
   }
 
@@ -1081,44 +1101,50 @@
 
 
   async function signInWithMagicLink() {
+    if (cloud.busy) return;
     const email = cloud.emailInput.value.trim();
     if (!email) {
-      setCloudStatus('Enter an email address first.', true);
+      setStatus('Sign in failed: Enter an email address first.', 'error');
       return;
     }
 
-    await withCloudBusy(async () => {
+    setLoading(true, 'signIn');
+    setStatus(`Sending magic link to ${email}…`, 'loading');
+    try {
       const { error } = await sb.auth.signInWithOtp({
         email,
         options: { emailRedirectTo: SUPABASE_REDIRECT_URL },
       });
       if (error) {
-        setCloudStatus(`Sign in failed: ${error.message}`, true);
+        setStatus(`Sign in failed: ${error.message}`, 'error');
         return;
       }
-      setCloudStatus(`Magic link sent to ${email}`);
-    });
+      setStatus(`Magic link sent to ${email}. Check your inbox.`, 'success');
+    } finally {
+      setLoading(false);
+    }
   }
 
   async function signOutCloud() {
-    await withCloudBusy(async () => {
-      const { error } = await sb.auth.signOut();
-      if (error) {
-        setCloudStatus(`Sign out failed: ${error.message}`, true);
-        return;
-      }
-      cloud.signedInUser = null;
-      setCloudStatus('Signed out');
-    });
+    const { error } = await sb.auth.signOut();
+    if (error) {
+      setStatus(`Sign out failed: ${error.message}`, 'error');
+      return;
+    }
+    cloud.signedInUser = null;
+    updateCloudUi();
+    setStatus('Signed out', 'info');
   }
 
   async function pushCloudState() {
-    await withCloudBusy(async () => {
+    if (cloud.busy) return;
+    setLoading(true, 'push');
+    try {
       const { data } = await sb.auth.getUser();
       const user = data?.user;
       if (!user) {
         cloud.signedInUser = null;
-        setCloudStatus('Please sign in first.', true);
+        setStatus('Please sign in first.', 'error');
         return;
       }
 
@@ -1131,23 +1157,27 @@
       });
 
       if (error) {
-        setCloudStatus(`Push failed: ${error.message}`, true);
+        setStatus(`Push failed: ${error.message}`, 'error');
         return;
       }
 
       localStorage.setItem(CLOUD_LAST_PUSH_KEY, nowIso);
       const label = formatCloudTimestamp(nowIso) || nowIso;
-      setCloudStatus(`Last push: ${label}`);
-    });
+      setStatus(`Push successful (${label})`, 'success');
+    } finally {
+      setLoading(false);
+    }
   }
 
   async function pullCloudState() {
-    await withCloudBusy(async () => {
+    if (cloud.busy) return;
+    setLoading(true, 'pull');
+    try {
       const { data: userData } = await sb.auth.getUser();
       const user = userData?.user;
       if (!user) {
         cloud.signedInUser = null;
-        setCloudStatus('Please sign in first.', true);
+        setStatus('Please sign in first.', 'error');
         return;
       }
 
@@ -1158,10 +1188,10 @@
 
       if (error) {
         if (error.code === 'PGRST116') {
-          setCloudStatus('No cloud data yet.');
+          setStatus('No cloud data yet. Push first.', 'warning');
           return;
         }
-        setCloudStatus(`Pull failed: ${error.message}`, true);
+        setStatus(`Pull failed: ${error.message}`, 'error');
         return;
       }
 
@@ -1169,8 +1199,10 @@
       const pulledAt = new Date().toISOString();
       localStorage.setItem(CLOUD_LAST_PULL_KEY, pulledAt);
       const label = formatCloudTimestamp(data.updated_at || pulledAt) || data.updated_at || pulledAt;
-      setCloudStatus(`Last pull: ${label}`);
-    });
+      setStatus(`Pull successful (${label})`, 'success');
+    } finally {
+      setLoading(false);
+    }
   }
 
   function bindCloudEvents() {
@@ -1186,9 +1218,15 @@
       }
     });
 
-    sb.auth.onAuthStateChange((_event, session) => {
+    sb.auth.onAuthStateChange((event, session) => {
       cloud.signedInUser = session?.user || null;
       updateCloudUi();
+      if (event === 'SIGNED_IN' && session?.user?.email) {
+        setStatus(`Signed in as ${session.user.email}`, 'success');
+      }
+      if (event === 'SIGNED_OUT') {
+        setStatus('Signed out', 'info');
+      }
     });
   }
 
@@ -1265,6 +1303,6 @@
   loadData();
   renderAll();
   refreshSignedInUser().catch((error) => {
-    setCloudStatus(`Auth check failed: ${error.message}`, true);
+    setStatus(`Auth check failed: ${error.message}`, 'error');
   });
 })();
