@@ -13,6 +13,8 @@
   const modalTitle = document.getElementById('modal-title');
   const modalStatus = document.getElementById('modal-status');
   const modalTextInput = document.getElementById('modal-text-input');
+  const modalUrgencyBtn = document.getElementById('modal-urgency-btn');
+  const modalUrgencyLabel = document.getElementById('modal-urgency-label');
 
   const meeting = {
     items: [],
@@ -116,9 +118,57 @@
     return formatLocalDate(action.createdAt);
   }
 
+  function htmlToPlainText(html) {
+    const container = document.createElement('div');
+    container.innerHTML = html || '';
+    return (container.textContent || '')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
+  function sanitizeActionHtml(inputHtml) {
+    const template = document.createElement('template');
+    template.innerHTML = inputHtml || '';
+    const allowedTags = new Set(['B', 'STRONG', 'I', 'EM', 'U', 'BR', 'P', 'UL', 'OL', 'LI']);
+
+    function sanitizeNode(node) {
+      if (node.nodeType === Node.TEXT_NODE) {
+        return document.createTextNode(node.textContent || '');
+      }
+
+      if (node.nodeType !== Node.ELEMENT_NODE) {
+        return document.createDocumentFragment();
+      }
+
+      const tagName = node.tagName.toUpperCase();
+      const fragment = document.createDocumentFragment();
+      Array.from(node.childNodes).forEach((child) => {
+        fragment.appendChild(sanitizeNode(child));
+      });
+
+      if (!allowedTags.has(tagName)) {
+        return fragment;
+      }
+
+      const cleanEl = document.createElement(tagName.toLowerCase());
+      cleanEl.appendChild(fragment);
+      return cleanEl;
+    }
+
+    const output = document.createElement('div');
+    Array.from(template.content.childNodes).forEach((node) => {
+      output.appendChild(sanitizeNode(node));
+    });
+
+    return output.innerHTML.trim();
+  }
+
   function normalizeAction(item) {
     const number = Number(item.number);
-    const text = typeof item.text === 'string' ? item.text.trim() : '';
+    const textSource = typeof item.text === 'string' ? item.text : '';
+    const htmlSource = typeof item.html === 'string' ? item.html : '';
+    const sanitizedHtml = sanitizeActionHtml(htmlSource || textSource);
+    const text = (textSource.trim() || htmlToPlainText(sanitizedHtml)).trim();
 
     if (!Number.isInteger(number) || !text) {
       return null;
@@ -127,14 +177,16 @@
     const createdAt = Number(item.createdAt) || Date.now();
     const completed = Boolean(item.completed);
     const deleted = Boolean(item.deleted);
+    const urgency = Number.isInteger(item.urgency) ? Math.max(0, Math.min(2, item.urgency)) : (item.urgent ? 1 : 0);
 
     return {
       number,
       text,
+      html: sanitizedHtml || text,
       createdAt,
       completed,
       deleted,
-      urgent: Boolean(item.urgent),
+      urgency,
       completedAt: completed ? Number(item.completedAt) || createdAt : null,
       deletedAt: deleted ? Number(item.deletedAt) || createdAt : null,
     };
@@ -262,12 +314,16 @@
   }
 
   function getOrderedActions(list) {
+    const incompleteSuperUrgent = list.actions
+      .filter((item) => !item.deleted && !item.completed && item.urgency === 2)
+      .sort(sortNewestFirst);
+
     const incompleteUrgent = list.actions
-      .filter((item) => !item.deleted && !item.completed && item.urgent)
+      .filter((item) => !item.deleted && !item.completed && item.urgency === 1)
       .sort(sortNewestFirst);
 
     const incompleteNormal = list.actions
-      .filter((item) => !item.deleted && !item.completed && !item.urgent)
+      .filter((item) => !item.deleted && !item.completed && item.urgency === 0)
       .sort(sortNewestFirst);
 
     const completed = list.actions
@@ -278,7 +334,7 @@
       .filter((item) => item.deleted)
       .sort((a, b) => (b.deletedAt || 0) - (a.deletedAt || 0) || b.number - a.number);
 
-    return [...incompleteUrgent, ...incompleteNormal, ...completed, ...deleted];
+    return [...incompleteSuperUrgent, ...incompleteUrgent, ...incompleteNormal, ...completed, ...deleted];
   }
 
   function updateRowTruncation(row) {
@@ -296,6 +352,36 @@
     document.querySelectorAll('.action-item').forEach((row) => {
       updateRowTruncation(row);
     });
+  }
+
+  function getUrgencyLabel(action) {
+    if (action.urgency === 2) {
+      return 'Super urgent';
+    }
+    if (action.urgency === 1) {
+      return 'Urgent';
+    }
+    return 'None';
+  }
+
+  function cycleUrgency(action) {
+    action.urgency = (action.urgency + 1) % 3;
+  }
+
+  function updateModalUrgencyUI(action) {
+    const label = getUrgencyLabel(action);
+    modalUrgencyLabel.textContent = label;
+    modalUrgencyBtn.classList.remove('super');
+    modalUrgencyBtn.classList.toggle('active', action.urgency === 1);
+    if (action.urgency === 2) {
+      modalUrgencyBtn.classList.add('super');
+      modalUrgencyBtn.textContent = '!!';
+    } else if (action.urgency === 1) {
+      modalUrgencyBtn.textContent = '!';
+    } else {
+      modalUrgencyBtn.textContent = '!';
+    }
+    modalUrgencyBtn.disabled = action.deleted;
   }
 
   function renderList(list) {
@@ -320,8 +406,11 @@
       if (action.deleted) {
         li.classList.add('deleted');
       }
-      if (action.urgent && !action.deleted && !action.completed) {
+      if (action.urgency === 1 && !action.deleted && !action.completed) {
         li.classList.add('urgent');
+      }
+      if (action.urgency === 2 && !action.deleted && !action.completed) {
+        li.classList.add('super-urgent');
       }
 
       const checkbox = document.createElement('input');
@@ -353,6 +442,9 @@
       const text = document.createElement('span');
       text.className = 'action-text';
       text.textContent = action.text;
+      if (action.urgency === 2 && !action.deleted && !action.completed) {
+        text.classList.add('super-urgent-text');
+      }
       textWrap.appendChild(text);
 
       const expandBtn = document.createElement('button');
@@ -370,12 +462,13 @@
       const urgentBtn = document.createElement('button');
       urgentBtn.type = 'button';
       urgentBtn.className = 'icon-btn urgent-btn';
-      urgentBtn.textContent = '!';
       urgentBtn.disabled = action.deleted;
-      urgentBtn.classList.toggle('active', action.urgent);
-      urgentBtn.setAttribute('aria-label', action.urgent ? `Remove urgent from action ${action.number}` : `Mark action ${action.number} urgent`);
+      urgentBtn.textContent = action.urgency === 2 ? '!!' : '!';
+      urgentBtn.classList.toggle('active', action.urgency === 1);
+      urgentBtn.classList.toggle('super', action.urgency === 2);
+      urgentBtn.setAttribute('aria-label', `Cycle urgency for action ${action.number}`);
       urgentBtn.addEventListener('click', () => {
-        action.urgent = !action.urgent;
+        cycleUrgency(action);
         saveList(list);
         renderList(list);
       });
@@ -692,7 +785,8 @@
       createdAt: Date.now(),
       completed: false,
       deleted: false,
-      urgent: false,
+      html: text,
+      urgency: 0,
       completedAt: null,
       deletedAt: null,
     });
@@ -727,49 +821,74 @@
   }
 
   function modalStatusText(action) {
-    if (action.deleted) {
-      return 'Status: deleted';
+    const created = `Created: ${formatLocalDate(action.createdAt)}`;
+    const completed = action.completed ? `Completed: ${formatLocalDate(action.completedAt)}` : null;
+    const deleted = action.deleted ? `Deleted: ${formatLocalDate(action.deletedAt)}` : null;
+
+    let primary = created;
+    if (deleted) {
+      primary = deleted;
+    } else if (completed) {
+      primary = completed;
     }
-    if (action.completed) {
-      return 'Status: completed';
+
+    const extras = [created];
+    if (completed) {
+      extras.push(completed);
     }
-    if (action.urgent) {
-      return 'Status: urgent';
+    if (deleted) {
+      extras.push(deleted);
     }
-    return 'Status: active';
+
+    const urgency = action.urgency === 2 ? 'Super urgent' : action.urgency === 1 ? 'Urgent' : null;
+    return urgency ? `${primary} • ${extras.join(' • ')} • ${urgency}` : `${primary} • ${extras.join(' • ')}`;
   }
 
   function openModal(list, action) {
     activeModalContext = { list, action };
-    modalTitle.textContent = `${list.name} action #${action.number}`;
+    modalTitle.textContent = `${action.number}`;
     modalStatus.textContent = modalStatusText(action);
-    modalTextInput.value = action.text;
+    modalTextInput.innerHTML = sanitizeActionHtml(action.html || action.text);
+    updateModalUrgencyUI(action);
     modal.hidden = false;
     modalTextInput.focus();
-    modalTextInput.setSelectionRange(modalTextInput.value.length, modalTextInput.value.length);
   }
 
-  function closeModal() {
+  function persistModalChanges() {
+    if (!activeModalContext) {
+      return false;
+    }
+
+    const { list, action } = activeModalContext;
+    const html = sanitizeActionHtml(modalTextInput.innerHTML);
+    const text = htmlToPlainText(html);
+    if (!text) {
+      modalTextInput.focus();
+      return false;
+    }
+
+    action.html = html;
+    action.text = text;
+    saveList(list);
+    renderList(list);
+    return true;
+  }
+
+  function closeModal(skipPersist = false) {
+    if (!skipPersist && activeModalContext) {
+      persistModalChanges();
+    }
     modal.hidden = true;
     activeModalContext = null;
   }
 
   function saveModalChanges() {
-    if (!activeModalContext) {
+    const saved = persistModalChanges();
+    if (!saved) {
       return;
     }
 
-    const { list, action } = activeModalContext;
-    const value = modalTextInput.value.trim();
-    if (!value) {
-      modalTextInput.focus();
-      return;
-    }
-
-    action.text = value;
-    saveList(list);
-    renderList(list);
-    closeModal();
+    closeModal(true);
   }
 
   function bindListEvents(list) {
@@ -822,6 +941,28 @@
   }
 
   modalSaveBtn.addEventListener('click', saveModalChanges);
+  modalUrgencyBtn.addEventListener('click', () => {
+    if (!activeModalContext || activeModalContext.action.deleted) {
+      return;
+    }
+
+    cycleUrgency(activeModalContext.action);
+    updateModalUrgencyUI(activeModalContext.action);
+  });
+  modalTextInput.addEventListener('keydown', (event) => {
+    if (!(event.ctrlKey || event.metaKey)) {
+      return;
+    }
+
+    const key = event.key.toLowerCase();
+    if (!['b', 'i', 'u'].includes(key)) {
+      return;
+    }
+
+    event.preventDefault();
+    const command = key === 'b' ? 'bold' : key === 'i' ? 'italic' : 'underline';
+    document.execCommand(command, false);
+  });
   modalCloseBtn.addEventListener('click', closeModal);
   modalBackdrop.addEventListener('click', closeModal);
   window.addEventListener('keydown', (event) => {

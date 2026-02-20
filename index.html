@@ -121,9 +121,14 @@
         <button id="modal-close-btn" type="button" class="modal-close" aria-label="Close modal">×</button>
         <h3 id="modal-title">Action details</h3>
         <div id="modal-status" class="modal-status"></div>
+        <div class="modal-toolbar">
+          <button id="modal-urgency-btn" type="button" class="icon-btn urgent-btn">!</button>
+          <span id="modal-urgency-label" class="modal-urgency-label">None</span>
+          <span class="modal-shortcuts">Shortcuts: Ctrl/Cmd+B, Ctrl/Cmd+I, Ctrl/Cmd+U</span>
+        </div>
         <div class="modal-body">
           <label class="visually-hidden" for="modal-text-input">Action text</label>
-          <textarea id="modal-text-input" maxlength="200"></textarea>
+          <div id="modal-text-input" class="modal-editor" contenteditable="true" role="textbox" aria-multiline="true"></div>
         </div>
         <div class="modal-footer">
           <button id="modal-save-btn" type="button" class="subtle-button">Save</button>
