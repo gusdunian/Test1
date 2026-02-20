@@ -206,6 +206,23 @@ input:focus-visible {
   background: var(--urgent-bg);
 }
 
+
+.action-item.super-urgent {
+  border-left: 3px solid #b91c1c;
+  padding-left: 0.4rem;
+  background: #ffe4e6;
+}
+
+.action-text.super-urgent-text {
+  font-weight: 700;
+}
+
+.urgent-btn.super {
+  border-color: #7f1d1d;
+  background: #7f1d1d;
+  color: #fff;
+}
+
 .action-item input[type='checkbox'] {
   width: 1rem;
   height: 1rem;
@@ -590,8 +607,27 @@ input:focus-visible {
 }
 
 .modal-status {
-  font-size: 0.8rem;
+  font-size: 0.78rem;
   color: var(--muted);
+}
+
+.modal-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.modal-urgency-label {
+  font-size: 0.78rem;
+  color: #334155;
+  font-weight: 600;
+}
+
+.modal-shortcuts {
+  font-size: 0.72rem;
+  color: #64748b;
+  margin-left: auto;
 }
 
 .modal-body {
@@ -599,10 +635,11 @@ input:focus-visible {
   overflow: auto;
 }
 
-.modal-body textarea {
+.modal-editor {
   width: 100%;
   min-height: 9rem;
-  resize: vertical;
+  max-height: 58vh;
+  overflow: auto;
   border: 1px solid var(--border);
   border-radius: 8px;
   padding: 0.55rem 0.65rem;
