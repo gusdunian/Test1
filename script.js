@@ -1,14 +1,43 @@
 (() => {
-  const actionForm = document.getElementById('add-action-form');
-  const actionInput = document.getElementById('action-input');
-  const actionList = document.getElementById('action-list');
-  const clearCompletedBtn = document.getElementById('clear-completed-btn');
-
-  const STORAGE_KEY = 'generalActions.v1';
+  const GENERAL_STORAGE_KEY = 'generalActions';
+  const SCHEDULING_STORAGE_KEY = 'schedulingActions';
+  const NEXT_NUMBER_STORAGE_KEY = 'nextActionNumber';
+  const LEGACY_STORAGE_KEY = 'generalActions.v1';
   const DEFAULT_NEXT_NUMBER = 137;
 
-  let actions = [];
-  let nextNumber = DEFAULT_NEXT_NUMBER;
+  const modal = document.getElementById('action-modal');
+  const modalBackdrop = document.getElementById('action-modal-backdrop');
+  const modalCloseBtn = document.getElementById('modal-close-btn');
+  const modalSaveBtn = document.getElementById('modal-save-btn');
+  const modalTitle = document.getElementById('modal-title');
+  const modalStatus = document.getElementById('modal-status');
+  const modalTextInput = document.getElementById('modal-text-input');
+
+  const lists = {
+    general: {
+      key: GENERAL_STORAGE_KEY,
+      showDates: true,
+      actions: [],
+      form: document.getElementById('general-add-action-form'),
+      input: document.getElementById('general-action-input'),
+      listEl: document.getElementById('general-action-list'),
+      clearBtn: document.getElementById('general-clear-completed-btn'),
+      name: 'General',
+    },
+    scheduling: {
+      key: SCHEDULING_STORAGE_KEY,
+      showDates: false,
+      actions: [],
+      form: document.getElementById('scheduling-add-action-form'),
+      input: document.getElementById('scheduling-action-input'),
+      listEl: document.getElementById('scheduling-action-list'),
+      clearBtn: document.getElementById('scheduling-clear-completed-btn'),
+      name: 'Scheduling',
+    },
+  };
+
+  let nextActionNumber = DEFAULT_NEXT_NUMBER;
+  let activeModalContext = null;
 
   function formatLocalDate(timestamp) {
     if (!timestamp) {
@@ -19,86 +48,6 @@
     const day = String(date.getDate()).padStart(2, '0');
     const month = String(date.getMonth() + 1).padStart(2, '0');
     return `${day}/${month}`;
-  }
-
-  function saveActions() {
-    localStorage.setItem(
-      STORAGE_KEY,
-      JSON.stringify({
-        actions,
-        nextNumber,
-      }),
-    );
-  }
-
-  function normalizeAction(item) {
-    const number = Number(item.number);
-    const text = typeof item.text === 'string' ? item.text.trim() : '';
-
-    if (!Number.isInteger(number) || !text) {
-      return null;
-    }
-
-    const createdAt = Number(item.createdAt) || Date.now();
-    const deleted = Boolean(item.deleted);
-    const completed = Boolean(item.completed);
-
-    return {
-      number,
-      text,
-      createdAt,
-      completed,
-      deleted,
-      urgent: Boolean(item.urgent),
-      completedAt: completed ? Number(item.completedAt) || createdAt : null,
-      deletedAt: deleted ? Number(item.deletedAt) || Date.now() : null,
-      expanded: Boolean(item.expanded),
-    };
-  }
-
-  function loadActions() {
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      if (!raw) {
-        return;
-      }
-
-      const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed.actions)) {
-        actions = parsed.actions.map(normalizeAction).filter(Boolean);
-      }
-
-      if (Number.isInteger(parsed.nextNumber) && parsed.nextNumber > 0) {
-        nextNumber = parsed.nextNumber;
-      }
-    } catch {
-      actions = [];
-      nextNumber = DEFAULT_NEXT_NUMBER;
-    }
-  }
-
-  function sortNewestFirst(a, b) {
-    return b.createdAt - a.createdAt || b.number - a.number;
-  }
-
-  function getOrderedActions() {
-    const incompleteUrgent = actions
-      .filter((item) => !item.deleted && !item.completed && item.urgent)
-      .sort(sortNewestFirst);
-
-    const incompleteNormal = actions
-      .filter((item) => !item.deleted && !item.completed && !item.urgent)
-      .sort(sortNewestFirst);
-
-    const completed = actions
-      .filter((item) => !item.deleted && item.completed)
-      .sort((a, b) => (b.completedAt || 0) - (a.completedAt || 0) || b.number - a.number);
-
-    const deleted = actions
-      .filter((item) => item.deleted)
-      .sort((a, b) => (b.deletedAt || 0) - (a.deletedAt || 0) || b.number - a.number);
-
-    return [...incompleteUrgent, ...incompleteNormal, ...completed, ...deleted];
   }
 
   function buildPrefix(action) {
@@ -113,16 +62,156 @@
     return formatLocalDate(action.createdAt);
   }
 
-  function renderActions() {
-    actionList.innerHTML = '';
+  function normalizeAction(item) {
+    const number = Number(item.number);
+    const text = typeof item.text === 'string' ? item.text.trim() : '';
 
-    const orderedActions = getOrderedActions();
+    if (!Number.isInteger(number) || !text) {
+      return null;
+    }
 
+    const createdAt = Number(item.createdAt) || Date.now();
+    const completed = Boolean(item.completed);
+    const deleted = Boolean(item.deleted);
+
+    return {
+      number,
+      text,
+      createdAt,
+      completed,
+      deleted,
+      urgent: Boolean(item.urgent),
+      completedAt: completed ? Number(item.completedAt) || createdAt : null,
+      deletedAt: deleted ? Number(item.deletedAt) || createdAt : null,
+    };
+  }
+
+  function saveList(list) {
+    localStorage.setItem(list.key, JSON.stringify(list.actions));
+  }
+
+  function saveNextNumber() {
+    localStorage.setItem(NEXT_NUMBER_STORAGE_KEY, String(nextActionNumber));
+  }
+
+  function loadList(list) {
+    try {
+      const raw = localStorage.getItem(list.key);
+      if (!raw) {
+        list.actions = [];
+        return;
+      }
+
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) {
+        list.actions = parsed.map(normalizeAction).filter(Boolean);
+      } else {
+        list.actions = [];
+      }
+    } catch {
+      list.actions = [];
+    }
+  }
+
+  function migrateLegacyGeneralData() {
+    if (localStorage.getItem(GENERAL_STORAGE_KEY)) {
+      return;
+    }
+
+    const legacyRaw = localStorage.getItem(LEGACY_STORAGE_KEY);
+    if (!legacyRaw) {
+      return;
+    }
+
+    try {
+      const parsed = JSON.parse(legacyRaw);
+      if (Array.isArray(parsed.actions)) {
+        lists.general.actions = parsed.actions.map(normalizeAction).filter(Boolean);
+        saveList(lists.general);
+      }
+
+      if (!localStorage.getItem(NEXT_NUMBER_STORAGE_KEY) && Number.isInteger(parsed.nextNumber) && parsed.nextNumber > 0) {
+        nextActionNumber = parsed.nextNumber;
+        saveNextNumber();
+      }
+    } catch {
+      // Keep defaults if migration fails.
+    }
+  }
+
+  function loadData() {
+    const storedNext = Number(localStorage.getItem(NEXT_NUMBER_STORAGE_KEY));
+    if (Number.isInteger(storedNext) && storedNext > 0) {
+      nextActionNumber = storedNext;
+    }
+
+    migrateLegacyGeneralData();
+
+    loadList(lists.general);
+    loadList(lists.scheduling);
+
+    const highestNumber = Math.max(
+      DEFAULT_NEXT_NUMBER - 1,
+      ...lists.general.actions.map((item) => item.number),
+      ...lists.scheduling.actions.map((item) => item.number),
+    );
+
+    if (nextActionNumber <= highestNumber) {
+      nextActionNumber = highestNumber + 1;
+      saveNextNumber();
+    }
+  }
+
+  function sortNewestFirst(a, b) {
+    return b.createdAt - a.createdAt || b.number - a.number;
+  }
+
+  function getOrderedActions(list) {
+    const incompleteUrgent = list.actions
+      .filter((item) => !item.deleted && !item.completed && item.urgent)
+      .sort(sortNewestFirst);
+
+    const incompleteNormal = list.actions
+      .filter((item) => !item.deleted && !item.completed && !item.urgent)
+      .sort(sortNewestFirst);
+
+    const completed = list.actions
+      .filter((item) => !item.deleted && item.completed)
+      .sort((a, b) => (b.completedAt || 0) - (a.completedAt || 0) || b.number - a.number);
+
+    const deleted = list.actions
+      .filter((item) => item.deleted)
+      .sort((a, b) => (b.deletedAt || 0) - (a.deletedAt || 0) || b.number - a.number);
+
+    return [...incompleteUrgent, ...incompleteNormal, ...completed, ...deleted];
+  }
+
+  function updateRowTruncation(row) {
+    const textEl = row.querySelector('.action-text');
+    const toggleBtn = row.querySelector('.action-text-toggle');
+    if (!textEl || !toggleBtn) {
+      return;
+    }
+
+    const isTruncated = textEl.scrollWidth > textEl.clientWidth + 1;
+    toggleBtn.hidden = !isTruncated;
+  }
+
+  function updateAllTruncation() {
+    document.querySelectorAll('.action-item').forEach((row) => {
+      updateRowTruncation(row);
+    });
+  }
+
+  function renderList(list) {
+    list.listEl.innerHTML = '';
+
+    const orderedActions = getOrderedActions(list);
     if (!orderedActions.length) {
       const empty = document.createElement('li');
       empty.className = 'coming-soon';
       empty.textContent = 'No actions yet. Add one to get started.';
-      actionList.appendChild(empty);
+      list.listEl.appendChild(empty);
       return;
     }
 
@@ -133,11 +222,9 @@
       if (action.completed) {
         li.classList.add('completed');
       }
-
       if (action.deleted) {
         li.classList.add('deleted');
       }
-
       if (action.urgent && !action.deleted && !action.completed) {
         li.classList.add('urgent');
       }
@@ -149,14 +236,9 @@
       checkbox.setAttribute('aria-label', `Mark action ${action.number} complete`);
       checkbox.addEventListener('change', () => {
         action.completed = checkbox.checked;
-        if (action.completed) {
-          action.completedAt = Date.now();
-        } else {
-          action.completedAt = null;
-        }
-
-        saveActions();
-        renderActions();
+        action.completedAt = action.completed ? Date.now() : null;
+        saveList(list);
+        renderList(list);
       });
 
       const number = document.createElement('span');
@@ -166,76 +248,26 @@
       const textWrap = document.createElement('div');
       textWrap.className = 'action-text-wrap';
 
-      const prefix = document.createElement('span');
-      prefix.className = 'action-date-prefix';
-      prefix.innerHTML = `(${buildPrefix(action)})`;
+      if (list.showDates) {
+        const prefix = document.createElement('span');
+        prefix.className = 'action-date-prefix';
+        prefix.innerHTML = `(${buildPrefix(action)})`;
+        textWrap.appendChild(prefix);
+      }
 
-      const textInput = document.createElement('textarea');
-      textInput.className = 'action-text';
-      textInput.value = action.text;
-      textInput.maxLength = 200;
-      textInput.disabled = action.deleted;
-      textInput.setAttribute('aria-label', `Action ${action.number} description`);
-      textInput.classList.toggle('expanded', action.expanded);
+      const text = document.createElement('span');
+      text.className = 'action-text';
+      text.textContent = action.text;
+      textWrap.appendChild(text);
 
-      const toggleBtn = document.createElement('button');
-      toggleBtn.type = 'button';
-      toggleBtn.className = 'action-text-toggle';
-      toggleBtn.hidden = true;
-
-      const updateToggle = () => {
-        if (action.expanded) {
-          toggleBtn.hidden = false;
-          toggleBtn.textContent = '–';
-          toggleBtn.setAttribute('aria-label', `Collapse action ${action.number} text`);
-          return;
-        }
-
-        const exceedsClamp = textInput.scrollHeight > textInput.clientHeight + 1;
-        toggleBtn.hidden = !exceedsClamp;
-
-        if (exceedsClamp) {
-          toggleBtn.textContent = '+';
-          toggleBtn.setAttribute('aria-label', `Expand action ${action.number} text`);
-        }
-      };
-
-      let editTimer;
-      const queueSave = () => {
-        clearTimeout(editTimer);
-        editTimer = window.setTimeout(() => {
-          action.text = textInput.value.trim();
-          saveActions();
-        }, 250);
-      };
-
-      textInput.addEventListener('input', () => {
-        queueSave();
-
-        requestAnimationFrame(() => {
-          updateToggle();
-        });
-      });
-      textInput.addEventListener('blur', () => {
-        clearTimeout(editTimer);
-        action.text = textInput.value.trim();
-        saveActions();
-      });
-
-      toggleBtn.addEventListener('click', () => {
-        action.expanded = !action.expanded;
-        textInput.classList.toggle('expanded', action.expanded);
-        saveActions();
-        requestAnimationFrame(() => {
-          updateToggle();
-        });
-      });
-
-      textWrap.append(prefix, textInput, toggleBtn);
-
-      requestAnimationFrame(() => {
-        updateToggle();
-      });
+      const expandBtn = document.createElement('button');
+      expandBtn.type = 'button';
+      expandBtn.className = 'action-text-toggle';
+      expandBtn.textContent = '+';
+      expandBtn.hidden = true;
+      expandBtn.setAttribute('aria-label', `Expand action ${action.number} details`);
+      expandBtn.addEventListener('click', () => openModal(list, action));
+      textWrap.appendChild(expandBtn);
 
       const controls = document.createElement('div');
       controls.className = 'action-controls';
@@ -249,8 +281,8 @@
       urgentBtn.setAttribute('aria-label', action.urgent ? `Remove urgent from action ${action.number}` : `Mark action ${action.number} urgent`);
       urgentBtn.addEventListener('click', () => {
         action.urgent = !action.urgent;
-        saveActions();
-        renderActions();
+        saveList(list);
+        renderList(list);
       });
 
       const deleteBtn = document.createElement('button');
@@ -267,59 +299,129 @@
           action.deletedAt = Date.now();
         }
 
-        saveActions();
-        renderActions();
+        saveList(list);
+        renderList(list);
       });
 
       controls.append(urgentBtn, deleteBtn);
-
       li.append(checkbox, number, textWrap, controls);
-      actionList.appendChild(li);
+      list.listEl.appendChild(li);
+
+      requestAnimationFrame(() => updateRowTruncation(li));
     });
   }
 
-  function addAction(text) {
-    const value = text.trim();
-    if (!value) {
+  function renderAll() {
+    renderList(lists.general);
+    renderList(lists.scheduling);
+  }
+
+  function addAction(list, rawText) {
+    const text = rawText.trim();
+    if (!text) {
       return;
     }
 
-    actions.unshift({
-      number: nextNumber,
-      text: value,
+    list.actions.unshift({
+      number: nextActionNumber,
+      text,
       createdAt: Date.now(),
       completed: false,
       deleted: false,
       urgent: false,
       completedAt: null,
       deletedAt: null,
-      expanded: false,
     });
-    nextNumber += 1;
-    saveActions();
-    renderActions();
+
+    nextActionNumber += 1;
+    saveList(list);
+    saveNextNumber();
+    renderList(list);
   }
 
-  actionForm.addEventListener('submit', (event) => {
-    event.preventDefault();
-    addAction(actionInput.value);
-    actionForm.reset();
-    actionInput.focus();
-  });
+  function modalStatusText(action) {
+    if (action.deleted) {
+      return 'Status: deleted';
+    }
+    if (action.completed) {
+      return 'Status: completed';
+    }
+    if (action.urgent) {
+      return 'Status: urgent';
+    }
+    return 'Status: active';
+  }
 
-  actionInput.addEventListener('keydown', (event) => {
-    if (event.key === 'Enter' && !event.shiftKey) {
+  function openModal(list, action) {
+    activeModalContext = { list, action };
+    modalTitle.textContent = `${list.name} action #${action.number}`;
+    modalStatus.textContent = modalStatusText(action);
+    modalTextInput.value = action.text;
+    modal.hidden = false;
+    modalTextInput.focus();
+    modalTextInput.setSelectionRange(modalTextInput.value.length, modalTextInput.value.length);
+  }
+
+  function closeModal() {
+    modal.hidden = true;
+    activeModalContext = null;
+  }
+
+  function saveModalChanges() {
+    if (!activeModalContext) {
+      return;
+    }
+
+    const { list, action } = activeModalContext;
+    const value = modalTextInput.value.trim();
+    if (!value) {
+      modalTextInput.focus();
+      return;
+    }
+
+    action.text = value;
+    saveList(list);
+    renderList(list);
+    closeModal();
+  }
+
+  function bindListEvents(list) {
+    list.form.addEventListener('submit', (event) => {
       event.preventDefault();
-      actionForm.requestSubmit();
+      addAction(list, list.input.value);
+      list.form.reset();
+      list.input.focus();
+    });
+
+    list.input.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter' && !event.shiftKey) {
+        event.preventDefault();
+        list.form.requestSubmit();
+      }
+    });
+
+    list.clearBtn.addEventListener('click', () => {
+      list.actions = list.actions.filter((item) => item.deleted || !item.completed);
+      saveList(list);
+      renderList(list);
+    });
+  }
+
+  modalSaveBtn.addEventListener('click', saveModalChanges);
+  modalCloseBtn.addEventListener('click', closeModal);
+  modalBackdrop.addEventListener('click', closeModal);
+  window.addEventListener('keydown', (event) => {
+    if (!modal.hidden && event.key === 'Escape') {
+      closeModal();
     }
   });
 
-  clearCompletedBtn.addEventListener('click', () => {
-    actions = actions.filter((item) => item.deleted || !item.completed);
-    saveActions();
-    renderActions();
+  window.addEventListener('resize', () => {
+    updateAllTruncation();
   });
 
-  loadActions();
-  renderActions();
+  bindListEvents(lists.general);
+  bindListEvents(lists.scheduling);
+  loadData();
+  renderAll();
 })();

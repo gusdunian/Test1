@@ -28,10 +28,10 @@
           </div>
 
           <div class="action-toolbar">
-            <form id="add-action-form" class="add-action-form" autocomplete="off">
-              <label class="visually-hidden" for="action-input">New action description</label>
+            <form id="general-add-action-form" class="add-action-form" autocomplete="off">
+              <label class="visually-hidden" for="general-action-input">New general action description</label>
               <textarea
-                id="action-input"
+                id="general-action-input"
                 name="action"
                 maxlength="200"
                 rows="2"
@@ -40,10 +40,10 @@
               ></textarea>
               <button type="submit" aria-label="Add action">+</button>
             </form>
-            <button id="clear-completed-btn" type="button" class="subtle-button">CC</button>
+            <button id="general-clear-completed-btn" type="button" class="subtle-button">CC</button>
           </div>
 
-          <ul id="action-list" class="action-list" aria-label="General action items"></ul>
+          <ul id="general-action-list" class="action-list" aria-label="General action items"></ul>
         </article>
 
         <article class="column card" aria-labelledby="scheduling-heading">
@@ -58,7 +58,24 @@
               <span>Scheduling actions</span>
             </h2>
           </div>
-          <p class="coming-soon">Coming soon</p>
+
+          <div class="action-toolbar">
+            <form id="scheduling-add-action-form" class="add-action-form" autocomplete="off">
+              <label class="visually-hidden" for="scheduling-action-input">New scheduling action description</label>
+              <textarea
+                id="scheduling-action-input"
+                name="action"
+                maxlength="200"
+                rows="2"
+                placeholder="Enter a scheduling action"
+                required
+              ></textarea>
+              <button type="submit" aria-label="Add scheduling action">+</button>
+            </form>
+            <button id="scheduling-clear-completed-btn" type="button" class="subtle-button">CC</button>
+          </div>
+
+          <ul id="scheduling-action-list" class="action-list" aria-label="Scheduling action items"></ul>
         </article>
 
         <article class="column card" aria-labelledby="meeting-notes-heading">
@@ -77,6 +94,22 @@
         </article>
       </section>
     </main>
+
+    <div id="action-modal" class="modal" hidden>
+      <div id="action-modal-backdrop" class="modal-backdrop"></div>
+      <div class="modal-dialog" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+        <button id="modal-close-btn" type="button" class="modal-close" aria-label="Close modal">×</button>
+        <h3 id="modal-title">Action details</h3>
+        <div id="modal-status" class="modal-status"></div>
+        <div class="modal-body">
+          <label class="visually-hidden" for="modal-text-input">Action text</label>
+          <textarea id="modal-text-input" maxlength="200"></textarea>
+        </div>
+        <div class="modal-footer">
+          <button id="modal-save-btn" type="button" class="subtle-button">Save</button>
+        </div>
+      </div>
+    </div>
 
     <script src="script.js"></script>
   </body>
