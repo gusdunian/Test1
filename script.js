@@ -41,7 +41,7 @@
 
     const createdAt = Number(item.createdAt) || Date.now();
     const deleted = Boolean(item.deleted);
-    const completed = deleted ? false : Boolean(item.completed);
+    const completed = Boolean(item.completed);
 
     return {
       number,
@@ -49,6 +49,7 @@
       createdAt,
       completed,
       deleted,
+      urgent: Boolean(item.urgent),
       completedAt: completed ? Number(item.completedAt) || createdAt : null,
       deletedAt: deleted ? Number(item.deletedAt) || Date.now() : null,
     };
@@ -75,32 +76,40 @@
     }
   }
 
+  function sortNewestFirst(a, b) {
+    return b.createdAt - a.createdAt || b.number - a.number;
+  }
+
   function getOrderedActions() {
-    const incomplete = actions
-      .filter((item) => !item.deleted && !item.completed)
-      .sort((a, b) => b.createdAt - a.createdAt || b.number - a.number);
+    const incompleteUrgent = actions
+      .filter((item) => !item.deleted && !item.completed && item.urgent)
+      .sort(sortNewestFirst);
+
+    const incompleteNormal = actions
+      .filter((item) => !item.deleted && !item.completed && !item.urgent)
+      .sort(sortNewestFirst);
 
     const completed = actions
       .filter((item) => !item.deleted && item.completed)
-      .sort((a, b) => (a.completedAt || 0) - (b.completedAt || 0) || a.number - b.number);
+      .sort((a, b) => (b.completedAt || 0) - (a.completedAt || 0) || b.number - a.number);
 
     const deleted = actions
       .filter((item) => item.deleted)
-      .sort((a, b) => (a.deletedAt || 0) - (b.deletedAt || 0) || a.number - b.number);
+      .sort((a, b) => (b.deletedAt || 0) - (a.deletedAt || 0) || b.number - a.number);
 
-    return [...incomplete, ...completed, ...deleted];
+    return [...incompleteUrgent, ...incompleteNormal, ...completed, ...deleted];
   }
 
   function buildPrefix(action) {
     if (action.deleted) {
-      return `(X ${formatLocalDate(action.deletedAt)})`;
+      return `<span class="prefix-mark">X</span>${formatLocalDate(action.deletedAt)}`;
     }
 
     if (action.completed) {
-      return `(C ${formatLocalDate(action.completedAt)})`;
+      return `<span class="prefix-mark">C</span>${formatLocalDate(action.completedAt)}`;
     }
 
-    return `(${formatLocalDate(action.createdAt)})`;
+    return formatLocalDate(action.createdAt);
   }
 
   function renderActions() {
@@ -126,6 +135,10 @@
 
       if (action.deleted) {
         li.classList.add('deleted');
+      }
+
+      if (action.urgent && !action.deleted && !action.completed) {
+        li.classList.add('urgent');
       }
 
       const checkbox = document.createElement('input');
@@ -154,7 +167,7 @@
 
       const prefix = document.createElement('span');
       prefix.className = 'action-date-prefix';
-      prefix.textContent = buildPrefix(action);
+      prefix.innerHTML = `(${buildPrefix(action)})`;
 
       const textInput = document.createElement('textarea');
       textInput.className = 'action-text';
@@ -162,7 +175,6 @@
       textInput.maxLength = 200;
       textInput.disabled = action.deleted;
       textInput.setAttribute('aria-label', `Action ${action.number} description`);
-
 
       const autosizeTextInput = () => {
         textInput.style.height = 'auto';
@@ -192,22 +204,43 @@
 
       textWrap.append(prefix, textInput);
 
-      const deleteBtn = document.createElement('button');
-      deleteBtn.type = 'button';
-      deleteBtn.className = 'delete-btn';
-      deleteBtn.textContent = 'X';
-      deleteBtn.disabled = action.deleted;
-      deleteBtn.setAttribute('aria-label', `Delete action ${action.number}`);
-      deleteBtn.addEventListener('click', () => {
-        action.deleted = true;
-        action.deletedAt = Date.now();
-        action.completed = false;
-        action.completedAt = null;
+      const controls = document.createElement('div');
+      controls.className = 'action-controls';
+
+      const urgentBtn = document.createElement('button');
+      urgentBtn.type = 'button';
+      urgentBtn.className = 'icon-btn urgent-btn';
+      urgentBtn.textContent = '!';
+      urgentBtn.disabled = action.deleted;
+      urgentBtn.classList.toggle('active', action.urgent);
+      urgentBtn.setAttribute('aria-label', action.urgent ? `Remove urgent from action ${action.number}` : `Mark action ${action.number} urgent`);
+      urgentBtn.addEventListener('click', () => {
+        action.urgent = !action.urgent;
         saveActions();
         renderActions();
       });
 
-      li.append(checkbox, number, textWrap, deleteBtn);
+      const deleteBtn = document.createElement('button');
+      deleteBtn.type = 'button';
+      deleteBtn.className = 'icon-btn delete-btn';
+      deleteBtn.textContent = action.deleted ? 'UD' : 'X';
+      deleteBtn.setAttribute('aria-label', action.deleted ? `Undelete action ${action.number}` : `Delete action ${action.number}`);
+      deleteBtn.addEventListener('click', () => {
+        if (action.deleted) {
+          action.deleted = false;
+          action.deletedAt = null;
+        } else {
+          action.deleted = true;
+          action.deletedAt = Date.now();
+        }
+
+        saveActions();
+        renderActions();
+      });
+
+      controls.append(urgentBtn, deleteBtn);
+
+      li.append(checkbox, number, textWrap, controls);
       actionList.appendChild(li);
     });
   }
@@ -224,6 +257,7 @@
       createdAt: Date.now(),
       completed: false,
       deleted: false,
+      urgent: false,
       completedAt: null,
       deletedAt: null,
     });
@@ -237,6 +271,13 @@
     addAction(actionInput.value);
     actionForm.reset();
     actionInput.focus();
+  });
+
+  actionInput.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter' && !event.shiftKey) {
+      event.preventDefault();
+      actionForm.requestSubmit();
+    }
   });
 
   clearCompletedBtn.addEventListener('click', () => {
