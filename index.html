@@ -90,7 +90,27 @@
               <span>Meeting notes</span>
             </h2>
           </div>
-          <p class="coming-soon">Coming soon</p>
+
+          <div class="meeting-toolbar">
+            <form id="meeting-add-form" class="meeting-add-form" autocomplete="off">
+              <label class="visually-hidden" for="meeting-title-input">Meeting title</label>
+              <input id="meeting-title-input" name="title" type="text" maxlength="200" placeholder="Meeting title" required />
+
+              <div class="meeting-date-time-row">
+                <label class="visually-hidden" for="meeting-date-input">Meeting date</label>
+                <input id="meeting-date-input" name="date" type="date" required />
+
+                <label class="visually-hidden" for="meeting-time-input">Meeting time</label>
+                <input id="meeting-time-input" name="time" type="time" required />
+              </div>
+
+              <label class="visually-hidden" for="meeting-notes-input">Meeting notes</label>
+              <textarea id="meeting-notes-input" name="notes" rows="3" placeholder="Add notes" required></textarea>
+              <button type="submit" aria-label="Add meeting">+</button>
+            </form>
+          </div>
+
+          <div id="meeting-list" class="meeting-list" aria-live="polite" aria-label="Meeting notes list"></div>
         </article>
       </section>
     </main>

@@ -1,6 +1,7 @@
 (() => {
   const GENERAL_STORAGE_KEY = 'generalActions';
   const SCHEDULING_STORAGE_KEY = 'schedulingActions';
+  const MEETING_STORAGE_KEY = 'meetingNotes';
   const NEXT_NUMBER_STORAGE_KEY = 'nextActionNumber';
   const LEGACY_STORAGE_KEY = 'generalActions.v1';
   const DEFAULT_NEXT_NUMBER = 137;
@@ -12,6 +13,18 @@
   const modalTitle = document.getElementById('modal-title');
   const modalStatus = document.getElementById('modal-status');
   const modalTextInput = document.getElementById('modal-text-input');
+
+  const meeting = {
+    items: [],
+    expandedId: null,
+    editingId: null,
+    form: document.getElementById('meeting-add-form'),
+    titleInput: document.getElementById('meeting-title-input'),
+    dateInput: document.getElementById('meeting-date-input'),
+    timeInput: document.getElementById('meeting-time-input'),
+    notesInput: document.getElementById('meeting-notes-input'),
+    listEl: document.getElementById('meeting-list'),
+  };
 
   const lists = {
     general: {
@@ -50,6 +63,47 @@
     return `${day}/${month}`;
   }
 
+  function formatWeekday(date) {
+    return date.toLocaleDateString('en-GB', { weekday: 'short' });
+  }
+
+  function formatTime24(date) {
+    return date.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false });
+  }
+
+  function getWeekCommencingMonday(dateInput) {
+    const date = new Date(dateInput);
+    date.setHours(0, 0, 0, 0);
+    const day = date.getDay();
+    const offset = day === 0 ? -6 : 1 - day;
+    date.setDate(date.getDate() + offset);
+    return date;
+  }
+
+  function dateToDateValue(date) {
+    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+  }
+
+  function dateToTimeValue(date) {
+    return `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
+  }
+
+  function parseLocalDateTime(dateValue, timeValue) {
+    if (!dateValue || !timeValue) {
+      return null;
+    }
+
+    const [year, month, day] = dateValue.split('-').map(Number);
+    const [hour, minute] = timeValue.split(':').map(Number);
+
+    if (![year, month, day, hour, minute].every(Number.isFinite)) {
+      return null;
+    }
+
+    const parsed = new Date(year, month - 1, day, hour, minute, 0, 0);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+  }
+
   function buildPrefix(action) {
     if (action.deleted) {
       return `<span class="prefix-mark">X</span>${formatLocalDate(action.deletedAt)}`;
@@ -86,8 +140,33 @@
     };
   }
 
+  function normalizeMeeting(item) {
+    const title = typeof item.title === 'string' ? item.title.trim() : '';
+    const notes = typeof item.notes === 'string' ? item.notes : '';
+    const date = new Date(item.datetime);
+    if (!title || Number.isNaN(date.getTime())) {
+      return null;
+    }
+
+    const createdAtRaw = item.createdAt ? new Date(item.createdAt) : null;
+    const updatedAtRaw = item.updatedAt ? new Date(item.updatedAt) : null;
+
+    return {
+      id: typeof item.id === 'string' && item.id ? item.id : `meeting-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+      title,
+      datetime: date.toISOString(),
+      notes,
+      createdAt: createdAtRaw && !Number.isNaN(createdAtRaw.getTime()) ? createdAtRaw.toISOString() : null,
+      updatedAt: updatedAtRaw && !Number.isNaN(updatedAtRaw.getTime()) ? updatedAtRaw.toISOString() : null,
+    };
+  }
+
   function saveList(list) {
     localStorage.setItem(list.key, JSON.stringify(list.actions));
+  }
+
+  function saveMeetings() {
+    localStorage.setItem(MEETING_STORAGE_KEY, JSON.stringify(meeting.items));
   }
 
   function saveNextNumber() {
@@ -110,6 +189,21 @@
       }
     } catch {
       list.actions = [];
+    }
+  }
+
+  function loadMeetings() {
+    try {
+      const raw = localStorage.getItem(MEETING_STORAGE_KEY);
+      if (!raw) {
+        meeting.items = [];
+        return;
+      }
+
+      const parsed = JSON.parse(raw);
+      meeting.items = Array.isArray(parsed) ? parsed.map(normalizeMeeting).filter(Boolean) : [];
+    } catch {
+      meeting.items = [];
     }
   }
 
@@ -149,6 +243,7 @@
 
     loadList(lists.general);
     loadList(lists.scheduling);
+    loadMeetings();
 
     const highestNumber = Math.max(
       DEFAULT_NEXT_NUMBER - 1,
@@ -311,9 +406,278 @@
     });
   }
 
+  function getSortedMeetings() {
+    return [...meeting.items].sort((a, b) => new Date(b.datetime) - new Date(a.datetime));
+  }
+
+  function getMeetingGroups() {
+    const byMonth = new Map();
+    getSortedMeetings().forEach((item) => {
+      const date = new Date(item.datetime);
+      const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+      const monthLabel = date.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
+      const monthStart = new Date(date.getFullYear(), date.getMonth(), 1).getTime();
+
+      if (!byMonth.has(monthKey)) {
+        byMonth.set(monthKey, { monthKey, monthLabel, monthStart, weeks: new Map() });
+      }
+
+      const month = byMonth.get(monthKey);
+      const monday = getWeekCommencingMonday(date);
+      const weekKey = dateToDateValue(monday);
+      if (!month.weeks.has(weekKey)) {
+        month.weeks.set(weekKey, { weekKey, weekStart: monday.getTime(), weekLabel: `W/C ${formatLocalDate(monday)}`, meetings: [] });
+      }
+
+      month.weeks.get(weekKey).meetings.push(item);
+    });
+
+    return [...byMonth.values()]
+      .sort((a, b) => b.monthStart - a.monthStart)
+      .map((month) => ({
+        ...month,
+        weeks: [...month.weeks.values()]
+          .sort((a, b) => b.weekStart - a.weekStart)
+          .map((week) => ({ ...week, meetings: week.meetings.sort((a, b) => new Date(b.datetime) - new Date(a.datetime)) })),
+      }));
+  }
+
+  function renderNotesContent(container, notes) {
+    const lines = notes.split('\n').map((line) => line.trim()).filter(Boolean);
+    const allBullets = lines.length > 0 && lines.every((line) => /^(- |\* |• )/.test(line));
+
+    if (!lines.length) {
+      const p = document.createElement('p');
+      p.textContent = 'No notes added.';
+      container.appendChild(p);
+      return;
+    }
+
+    if (allBullets) {
+      const ul = document.createElement('ul');
+      lines.forEach((line) => {
+        const li = document.createElement('li');
+        li.textContent = line.replace(/^(- |\* |• )/, '').trim();
+        ul.appendChild(li);
+      });
+      container.appendChild(ul);
+      return;
+    }
+
+    notes
+      .split(/\n{2,}/)
+      .map((part) => part.trim())
+      .filter(Boolean)
+      .forEach((paragraph) => {
+        const p = document.createElement('p');
+        p.textContent = paragraph;
+        container.appendChild(p);
+      });
+  }
+
+  function renderMeetingExpanded(item) {
+    const detail = document.createElement('div');
+    detail.className = 'meeting-details';
+
+    if (meeting.editingId === item.id) {
+      const editForm = document.createElement('form');
+      editForm.className = 'meeting-edit-form';
+
+      const date = new Date(item.datetime);
+
+      const titleInput = document.createElement('input');
+      titleInput.type = 'text';
+      titleInput.required = true;
+      titleInput.value = item.title;
+      titleInput.maxLength = 200;
+
+      const dateTimeWrap = document.createElement('div');
+      dateTimeWrap.className = 'meeting-edit-datetime';
+
+      const dateInput = document.createElement('input');
+      dateInput.type = 'date';
+      dateInput.required = true;
+      dateInput.value = dateToDateValue(date);
+
+      const timeInput = document.createElement('input');
+      timeInput.type = 'time';
+      timeInput.required = true;
+      timeInput.value = dateToTimeValue(date);
+
+      dateTimeWrap.append(dateInput, timeInput);
+
+      const notesInput = document.createElement('textarea');
+      notesInput.required = true;
+      notesInput.value = item.notes;
+
+      const controls = document.createElement('div');
+      controls.className = 'meeting-edit-controls';
+
+      const saveBtn = document.createElement('button');
+      saveBtn.type = 'submit';
+      saveBtn.className = 'subtle-button';
+      saveBtn.textContent = 'Save';
+
+      const cancelBtn = document.createElement('button');
+      cancelBtn.type = 'button';
+      cancelBtn.className = 'subtle-button';
+      cancelBtn.textContent = 'Cancel';
+      cancelBtn.addEventListener('click', () => {
+        meeting.editingId = null;
+        renderMeetings();
+      });
+
+      controls.append(saveBtn, cancelBtn);
+      editForm.append(titleInput, dateTimeWrap, notesInput, controls);
+      detail.appendChild(editForm);
+
+      editForm.addEventListener('submit', (event) => {
+        event.preventDefault();
+        const parsed = parseLocalDateTime(dateInput.value, timeInput.value);
+        if (!parsed) {
+          return;
+        }
+
+        const title = titleInput.value.trim();
+        const notes = notesInput.value.trim();
+        if (!title || !notes) {
+          return;
+        }
+
+        item.title = title;
+        item.notes = notes;
+        item.datetime = parsed.toISOString();
+        item.updatedAt = new Date().toISOString();
+        saveMeetings();
+        meeting.editingId = null;
+        renderMeetings();
+      });
+
+      return detail;
+    }
+
+    const title = document.createElement('h4');
+    title.className = 'meeting-detail-title';
+    title.textContent = item.title;
+
+    const notesWrap = document.createElement('div');
+    notesWrap.className = 'meeting-notes-rendered';
+    renderNotesContent(notesWrap, item.notes);
+
+    const controls = document.createElement('div');
+    controls.className = 'meeting-detail-controls';
+
+    const editBtn = document.createElement('button');
+    editBtn.type = 'button';
+    editBtn.className = 'meeting-link-btn';
+    editBtn.textContent = 'Edit';
+    editBtn.addEventListener('click', () => {
+      meeting.editingId = item.id;
+      renderMeetings();
+    });
+
+    const deleteBtn = document.createElement('button');
+    deleteBtn.type = 'button';
+    deleteBtn.className = 'meeting-link-btn delete';
+    deleteBtn.textContent = 'Delete';
+    deleteBtn.addEventListener('click', () => {
+      const confirmed = window.confirm(`Delete meeting: "${item.title}"?`);
+      if (!confirmed) {
+        return;
+      }
+
+      meeting.items = meeting.items.filter((entry) => entry.id !== item.id);
+      if (meeting.expandedId === item.id) {
+        meeting.expandedId = null;
+      }
+      if (meeting.editingId === item.id) {
+        meeting.editingId = null;
+      }
+
+      saveMeetings();
+      renderMeetings();
+    });
+
+    controls.append(editBtn, deleteBtn);
+    detail.append(title, notesWrap, controls);
+    return detail;
+  }
+
+  function renderMeetings() {
+    meeting.listEl.innerHTML = '';
+
+    if (!meeting.items.length) {
+      const empty = document.createElement('p');
+      empty.className = 'meeting-empty';
+      empty.textContent = 'No meeting notes yet. Add one to get started.';
+      meeting.listEl.appendChild(empty);
+      return;
+    }
+
+    const monthGroups = getMeetingGroups();
+
+    monthGroups.forEach((month) => {
+      const monthEl = document.createElement('section');
+      monthEl.className = 'meeting-month-group';
+
+      const monthHeader = document.createElement('h3');
+      monthHeader.className = 'meeting-month-header';
+      monthHeader.textContent = month.monthLabel;
+      monthEl.appendChild(monthHeader);
+
+      month.weeks.forEach((week) => {
+        const weekEl = document.createElement('section');
+        weekEl.className = 'meeting-week-group';
+
+        const weekHeader = document.createElement('h4');
+        weekHeader.className = 'meeting-week-header';
+        weekHeader.textContent = week.weekLabel;
+
+        const meetingsEl = document.createElement('ul');
+        meetingsEl.className = 'meeting-items';
+
+        week.meetings.forEach((item) => {
+          const li = document.createElement('li');
+          li.className = 'meeting-item';
+
+          const date = new Date(item.datetime);
+          const summary = document.createElement('button');
+          summary.type = 'button';
+          summary.className = 'meeting-summary';
+          summary.textContent = `${formatWeekday(date)} ${formatLocalDate(date)} ${formatTime24(date)} — ${item.title}`;
+
+          summary.addEventListener('click', () => {
+            if (meeting.expandedId === item.id) {
+              meeting.expandedId = null;
+              meeting.editingId = null;
+            } else {
+              meeting.expandedId = item.id;
+              meeting.editingId = null;
+            }
+            renderMeetings();
+          });
+
+          li.appendChild(summary);
+
+          if (meeting.expandedId === item.id) {
+            li.appendChild(renderMeetingExpanded(item));
+          }
+
+          meetingsEl.appendChild(li);
+        });
+
+        weekEl.append(weekHeader, meetingsEl);
+        monthEl.appendChild(weekEl);
+      });
+
+      meeting.listEl.appendChild(monthEl);
+    });
+  }
+
   function renderAll() {
     renderList(lists.general);
     renderList(lists.scheduling);
+    renderMeetings();
   }
 
   function addAction(list, rawText) {
@@ -337,6 +701,29 @@
     saveList(list);
     saveNextNumber();
     renderList(list);
+  }
+
+  function addMeeting(titleRaw, dateRaw, timeRaw, notesRaw) {
+    const title = titleRaw.trim();
+    const notes = notesRaw.trim();
+    const parsed = parseLocalDateTime(dateRaw, timeRaw);
+    if (!title || !notes || !parsed) {
+      return false;
+    }
+
+    const nowIso = new Date().toISOString();
+    meeting.items.push({
+      id: `meeting-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+      title,
+      datetime: parsed.toISOString(),
+      notes,
+      createdAt: nowIso,
+      updatedAt: nowIso,
+    });
+
+    saveMeetings();
+    renderMeetings();
+    return true;
   }
 
   function modalStatusText(action) {
@@ -407,6 +794,33 @@
     });
   }
 
+  function bindMeetingEvents() {
+    meeting.form.addEventListener('submit', (event) => {
+      event.preventDefault();
+      const added = addMeeting(meeting.titleInput.value, meeting.dateInput.value, meeting.timeInput.value, meeting.notesInput.value);
+      if (!added) {
+        return;
+      }
+
+      meeting.form.reset();
+      meeting.titleInput.focus();
+    });
+
+    meeting.titleInput.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter') {
+        event.preventDefault();
+        meeting.dateInput.focus();
+      }
+    });
+
+    meeting.form.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) {
+        event.preventDefault();
+        meeting.form.requestSubmit();
+      }
+    });
+  }
+
   modalSaveBtn.addEventListener('click', saveModalChanges);
   modalCloseBtn.addEventListener('click', closeModal);
   modalBackdrop.addEventListener('click', closeModal);
@@ -422,6 +836,7 @@
 
   bindListEvents(lists.general);
   bindListEvents(lists.scheduling);
+  bindMeetingEvents();
   loadData();
   renderAll();
 })();
