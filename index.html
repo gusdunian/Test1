@@ -14,7 +14,48 @@
     </header>
 
     <main id="main-content" class="container" aria-live="polite">
-      <section aria-labelledby="status-heading" class="card">
+      <section class="columns" aria-label="Action columns">
+        <article class="column card" aria-labelledby="general-actions-heading">
+          <div class="column-header">
+            <h2 id="general-actions-heading">General action list</h2>
+          </div>
+
+          <form id="add-action-form" class="add-action-form" autocomplete="off">
+            <label class="visually-hidden" for="action-input">New action description</label>
+            <input
+              id="action-input"
+              name="action"
+              type="text"
+              maxlength="200"
+              placeholder="Enter a new action"
+              required
+            />
+            <button type="submit">Add action</button>
+          </form>
+
+          <div class="action-toolbar">
+            <button id="clear-completed-btn" type="button" class="subtle-button">Clear completed</button>
+          </div>
+
+          <ul id="action-list" class="action-list" aria-label="General action items"></ul>
+        </article>
+
+        <article class="column card" aria-labelledby="scheduling-heading">
+          <div class="column-header">
+            <h2 id="scheduling-heading">Scheduling actions</h2>
+          </div>
+          <p class="coming-soon">Coming soon</p>
+        </article>
+
+        <article class="column card" aria-labelledby="meeting-notes-heading">
+          <div class="column-header">
+            <h2 id="meeting-notes-heading">Meeting notes</h2>
+          </div>
+          <p class="coming-soon">Coming soon</p>
+        </article>
+      </section>
+
+      <section aria-labelledby="status-heading" class="card status-card">
         <h2 id="status-heading">Deployment sanity check</h2>
         <p id="loaded-at">Loaded at: checking...</p>
         <p id="location">URL: checking...</p>
