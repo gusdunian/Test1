@@ -1,9 +1,4 @@
 (() => {
-  const loadedAtEl = document.getElementById('loaded-at');
-  const locationEl = document.getElementById('location');
-  const checkBtn = document.getElementById('check-btn');
-  const resultEl = document.getElementById('check-result');
-
   const actionForm = document.getElementById('add-action-form');
   const actionInput = document.getElementById('action-input');
   const actionList = document.getElementById('action-list');
@@ -12,17 +7,8 @@
   const STORAGE_KEY = 'generalActions.v1';
   const DEFAULT_NEXT_NUMBER = 137;
 
-  let count = 0;
   let actions = [];
   let nextNumber = DEFAULT_NEXT_NUMBER;
-
-  loadedAtEl.textContent = `Loaded at: ${new Date().toLocaleString()}`;
-  locationEl.textContent = `URL: ${window.location.href}`;
-
-  checkBtn.addEventListener('click', () => {
-    count += 1;
-    resultEl.textContent = `JS OK: ${count}`;
-  });
 
   function saveActions() {
     localStorage.setItem(
@@ -119,7 +105,7 @@
       const deleteBtn = document.createElement('button');
       deleteBtn.type = 'button';
       deleteBtn.className = 'delete-btn';
-      deleteBtn.textContent = 'Delete';
+      deleteBtn.textContent = 'X';
       deleteBtn.setAttribute('aria-label', `Delete action ${action.number}`);
       deleteBtn.addEventListener('click', () => {
         actions = actions.filter((item) => item.number !== action.number);
@@ -138,7 +124,7 @@
       return;
     }
 
-    actions.push({
+    actions.unshift({
       number: nextNumber,
       text: value,
       completed: false,
