@@ -52,6 +52,7 @@
       urgent: Boolean(item.urgent),
       completedAt: completed ? Number(item.completedAt) || createdAt : null,
       deletedAt: deleted ? Number(item.deletedAt) || Date.now() : null,
+      expanded: Boolean(item.expanded),
     };
   }
 
@@ -175,10 +176,28 @@
       textInput.maxLength = 200;
       textInput.disabled = action.deleted;
       textInput.setAttribute('aria-label', `Action ${action.number} description`);
+      textInput.classList.toggle('expanded', action.expanded);
 
-      const autosizeTextInput = () => {
-        textInput.style.height = 'auto';
-        textInput.style.height = `${textInput.scrollHeight}px`;
+      const toggleBtn = document.createElement('button');
+      toggleBtn.type = 'button';
+      toggleBtn.className = 'action-text-toggle';
+      toggleBtn.hidden = true;
+
+      const updateToggle = () => {
+        if (action.expanded) {
+          toggleBtn.hidden = false;
+          toggleBtn.textContent = '–';
+          toggleBtn.setAttribute('aria-label', `Collapse action ${action.number} text`);
+          return;
+        }
+
+        const exceedsClamp = textInput.scrollHeight > textInput.clientHeight + 1;
+        toggleBtn.hidden = !exceedsClamp;
+
+        if (exceedsClamp) {
+          toggleBtn.textContent = '+';
+          toggleBtn.setAttribute('aria-label', `Expand action ${action.number} text`);
+        }
       };
 
       let editTimer;
@@ -191,8 +210,11 @@
       };
 
       textInput.addEventListener('input', () => {
-        autosizeTextInput();
         queueSave();
+
+        requestAnimationFrame(() => {
+          updateToggle();
+        });
       });
       textInput.addEventListener('blur', () => {
         clearTimeout(editTimer);
@@ -200,9 +222,20 @@
         saveActions();
       });
 
-      autosizeTextInput();
+      toggleBtn.addEventListener('click', () => {
+        action.expanded = !action.expanded;
+        textInput.classList.toggle('expanded', action.expanded);
+        saveActions();
+        requestAnimationFrame(() => {
+          updateToggle();
+        });
+      });
 
-      textWrap.append(prefix, textInput);
+      textWrap.append(prefix, textInput, toggleBtn);
+
+      requestAnimationFrame(() => {
+        updateToggle();
+      });
 
       const controls = document.createElement('div');
       controls.className = 'action-controls';
@@ -260,6 +293,7 @@
       urgent: false,
       completedAt: null,
       deletedAt: null,
+      expanded: false,
     });
     nextNumber += 1;
     saveActions();
