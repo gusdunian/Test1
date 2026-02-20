@@ -156,13 +156,18 @@
       prefix.className = 'action-date-prefix';
       prefix.textContent = buildPrefix(action);
 
-      const textInput = document.createElement('input');
-      textInput.type = 'text';
+      const textInput = document.createElement('textarea');
       textInput.className = 'action-text';
       textInput.value = action.text;
       textInput.maxLength = 200;
       textInput.disabled = action.deleted;
       textInput.setAttribute('aria-label', `Action ${action.number} description`);
+
+
+      const autosizeTextInput = () => {
+        textInput.style.height = 'auto';
+        textInput.style.height = `${textInput.scrollHeight}px`;
+      };
 
       let editTimer;
       const queueSave = () => {
@@ -173,12 +178,17 @@
         }, 250);
       };
 
-      textInput.addEventListener('input', queueSave);
+      textInput.addEventListener('input', () => {
+        autosizeTextInput();
+        queueSave();
+      });
       textInput.addEventListener('blur', () => {
         clearTimeout(editTimer);
         action.text = textInput.value.trim();
         saveActions();
       });
+
+      autosizeTextInput();
 
       textWrap.append(prefix, textInput);
 
