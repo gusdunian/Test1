@@ -726,9 +726,12 @@
         weekHeader.textContent = week.weekLabel;
         weekHeaderRow.append(weekToggle, weekHeader);
 
+        const weekItemsContainer = document.createElement('div');
+        weekItemsContainer.className = 'meeting-week-items';
+        weekItemsContainer.hidden = weekCollapsed;
+
         const meetingsEl = document.createElement('ul');
         meetingsEl.className = 'meeting-items';
-        meetingsEl.hidden = weekCollapsed;
 
         week.meetings.forEach((item) => {
           const li = document.createElement('li');
@@ -748,7 +751,8 @@
           meetingsEl.appendChild(li);
         });
 
-        weekSection.append(weekHeaderRow, meetingsEl);
+        weekItemsContainer.appendChild(meetingsEl);
+        weekSection.append(weekHeaderRow, weekItemsContainer);
         monthBody.appendChild(weekSection);
       });
 
@@ -868,21 +872,20 @@
     document.execCommand(command, false);
   }
 
+  function getEditorCommandForShortcut(event) {
+    if (!(event.ctrlKey || event.metaKey)) return null;
+    const key = event.key.toLowerCase();
+    if (event.shiftKey && key === '8') return 'insertUnorderedList';
+    if (event.shiftKey && key === '7') return 'insertOrderedList';
+    if (key === 'b') return 'bold';
+    if (key === 'i') return 'italic';
+    if (key === 'u') return 'underline';
+    return null;
+  }
+
   function bindEditorShortcuts(editorEl) {
     editorEl.addEventListener('keydown', (event) => {
-      if (!(event.ctrlKey || event.metaKey)) return;
-      const key = event.key.toLowerCase();
-      if (event.shiftKey && key === '8') {
-        event.preventDefault();
-        execEditorCommand(editorEl, 'insertUnorderedList');
-        return;
-      }
-      if (event.shiftKey && key === '7') {
-        event.preventDefault();
-        execEditorCommand(editorEl, 'insertOrderedList');
-        return;
-      }
-      const command = key === 'b' ? 'bold' : key === 'i' ? 'italic' : key === 'u' ? 'underline' : null;
+      const command = getEditorCommandForShortcut(event);
       if (!command) return;
       event.preventDefault();
       execEditorCommand(editorEl, command);
