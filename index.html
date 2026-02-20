@@ -20,21 +20,20 @@
             <h2 id="general-actions-heading">General action list</h2>
           </div>
 
-          <form id="add-action-form" class="add-action-form" autocomplete="off">
-            <label class="visually-hidden" for="action-input">New action description</label>
-            <input
-              id="action-input"
-              name="action"
-              type="text"
-              maxlength="200"
-              placeholder="Enter a new action"
-              required
-            />
-            <button type="submit">Add action</button>
-          </form>
-
           <div class="action-toolbar">
-            <button id="clear-completed-btn" type="button" class="subtle-button">Clear completed</button>
+            <form id="add-action-form" class="add-action-form" autocomplete="off">
+              <label class="visually-hidden" for="action-input">New action description</label>
+              <input
+                id="action-input"
+                name="action"
+                type="text"
+                maxlength="200"
+                placeholder="Enter a new action"
+                required
+              />
+              <button type="submit" aria-label="Add action">+</button>
+            </form>
+            <button id="clear-completed-btn" type="button" class="subtle-button">CC</button>
           </div>
 
           <ul id="action-list" class="action-list" aria-label="General action items"></ul>
@@ -53,14 +52,6 @@
           </div>
           <p class="coming-soon">Coming soon</p>
         </article>
-      </section>
-
-      <section aria-labelledby="status-heading" class="card status-card">
-        <h2 id="status-heading">Deployment sanity check</h2>
-        <p id="loaded-at">Loaded at: checking...</p>
-        <p id="location">URL: checking...</p>
-        <button id="check-btn" type="button">Run JS check</button>
-        <p id="check-result">JS OK: 0</p>
       </section>
     </main>
 
