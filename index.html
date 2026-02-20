@@ -11,14 +11,19 @@
     <header class="banner" role="banner">
       <h1>Angus Working File</h1>
       <section class="cloud-panel" aria-label="Cloud sync controls">
-        <input id="cloud-email-input" type="email" placeholder="you@example.com" autocomplete="email" />
-        <button id="cloud-sign-in-btn" type="button" class="cloud-btn">Sign in</button>
-        <button id="cloud-sign-out-btn" type="button" class="cloud-btn" hidden>Sign out</button>
-        <button id="cloud-push-btn" type="button" class="cloud-btn" disabled>Push</button>
-        <button id="cloud-pull-btn" type="button" class="cloud-btn" disabled>Pull</button>
-        <span id="cloud-status" class="cloud-status">Signed out</span>
+        <h2 class="cloud-title">Cloud</h2>
+        <div class="cloud-controls">
+          <input id="cloud-email-input" type="email" placeholder="you@example.com" autocomplete="email" />
+          <button id="cloud-sign-in-btn" type="button" class="cloud-btn">Sign in</button>
+          <button id="cloud-sign-out-btn" type="button" class="cloud-btn" hidden>Sign out</button>
+          <button id="cloud-push-btn" type="button" class="cloud-btn" disabled>Push</button>
+          <button id="cloud-pull-btn" type="button" class="cloud-btn" disabled>Pull</button>
+        </div>
+        <div id="cloud-status" class="cloud-status cloud-status-info" role="status" aria-live="polite">Ready</div>
       </section>
     </header>
+
+    <div id="toast-container" class="toast-container" aria-live="polite" aria-atomic="true"></div>
 
     <main id="main-content" class="container" aria-live="polite">
       <section class="columns" aria-label="Action columns">
