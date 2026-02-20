@@ -20,6 +20,61 @@ body { margin: 0; font-family: Inter, -apple-system, BlinkMacSystemFont, 'Segoe 
 .visually-hidden { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
 .banner { background: linear-gradient(135deg, #1e3a8a, #2563eb); color: #fff; padding: 1rem 1.25rem; text-align: left; }
 .banner h1 { margin: 0; font-size: clamp(1.3rem, 2.4vw, 1.9rem); }
+
+.banner {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.8rem;
+}
+
+.banner h1 {
+  margin: 0;
+}
+
+.cloud-panel {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.cloud-panel input {
+  width: 11rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  padding: 0.3rem 0.45rem;
+  font: inherit;
+  font-size: 0.8rem;
+}
+
+.cloud-btn {
+  border: 1px solid #cbd5e1;
+  background: #fff;
+  color: #334155;
+  border-radius: 6px;
+  font-size: 0.76rem;
+  padding: 0.25rem 0.45rem;
+}
+
+.cloud-btn:hover,
+.cloud-btn:focus-visible {
+  background: #f1f5f9;
+  color: #0f172a;
+}
+
+.cloud-btn[disabled] {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.cloud-status {
+  min-width: 10rem;
+  font-size: 0.74rem;
+  color: #475569;
+}
+
 .container { width: 100%; margin: 1rem 0; padding: 0 1.25rem 2rem; }
 .columns { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1rem; align-items: start; width: 100%; }
 .card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 0; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06); overflow: hidden; }
@@ -123,3 +178,19 @@ button:focus-visible, textarea:focus-visible, input:focus-visible, [contentedita
 }
 
 .meeting-big-edit-form { display: grid; grid-template-columns: minmax(0, 1fr); gap: 0.45rem; }
+
+
+@media (max-width: 640px) {
+  .banner {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .cloud-panel {
+    justify-content: flex-start;
+  }
+
+  .cloud-panel input {
+    width: min(100%, 15rem);
+  }
+}

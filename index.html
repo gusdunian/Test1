@@ -10,6 +10,14 @@
     <a class="skip-link" href="#main-content">Skip to main content</a>
     <header class="banner" role="banner">
       <h1>Angus Working File</h1>
+      <section class="cloud-panel" aria-label="Cloud sync controls">
+        <input id="cloud-email-input" type="email" placeholder="you@example.com" autocomplete="email" />
+        <button id="cloud-sign-in-btn" type="button" class="cloud-btn">Sign in</button>
+        <button id="cloud-sign-out-btn" type="button" class="cloud-btn" hidden>Sign out</button>
+        <button id="cloud-push-btn" type="button" class="cloud-btn" disabled>Push</button>
+        <button id="cloud-pull-btn" type="button" class="cloud-btn" disabled>Pull</button>
+        <span id="cloud-status" class="cloud-status">Signed out</span>
+      </section>
     </header>
 
     <main id="main-content" class="container" aria-live="polite">
@@ -205,6 +213,7 @@
       </div>
     </div>
 
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="script.js"></script>
   </body>
 </html>

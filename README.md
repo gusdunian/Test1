@@ -35,3 +35,11 @@ Example:
 
 ## Local manual check
 Open `index.html` in a browser and verify the same checks above.
+
+
+## Supabase backend (MVP)
+- Adds email magic-link sign-in and a compact Cloud panel for authenticated sync controls.
+- Adds manual **Push**/**Pull** sync of dashboard state to/from Supabase (`dashboard_state` table) using browser-safe auth.
+- Supabase config lives in `script.js` (`SUPABASE_URL` and `SUPABASE_PUBLISHABLE_KEY`).
+- In Supabase Auth settings, add this redirect URL allowlist entry: `https://gusdunian.github.io/Test1/`.
+
