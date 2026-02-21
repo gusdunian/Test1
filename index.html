@@ -9,7 +9,10 @@
   <body>
     <a class="skip-link" href="#main-content">Skip to main content</a>
     <header class="banner" role="banner">
-      <h1>Angus’ Working Dashboard</h1>
+      <div class="banner-heading">
+        <h1 id="dashboard-title">Angus’ Working Dashboard</h1>
+        <p id="dashboard-date" class="banner-date" aria-label="Today&#39;s date"></p>
+      </div>
       <section class="cloud-panel" aria-label="Cloud sync controls">
         <div class="cloud-controls">
           <input id="cloud-email-input" type="email" placeholder="you@example.com" autocomplete="email" />
@@ -28,7 +31,10 @@
           </label>
           <button id="cloud-settings-btn" type="button" class="cloud-btn" hidden>Settings</button>
         </div>
-        <div id="cloud-status" class="cloud-status cloud-status-info" role="status" aria-live="polite">Ready</div>
+        <div class="cloud-status-row">
+          <button id="collapse-all-btn" type="button" class="cloud-btn" hidden>Hide</button>
+          <div id="cloud-status" class="cloud-status cloud-status-info" role="status" aria-live="polite">Ready</div>
+        </div>
       </section>
     </header>
 
@@ -368,6 +374,7 @@
         <button id="settings-modal-close" type="button" class="modal-close" aria-label="Close modal">×</button>
         <h3 id="settings-modal-title">Settings</h3>
         <form id="settings-form" class="settings-form" autocomplete="off">
+          <label class="settings-row">Dashboard name <input id="dashboard-title-input" type="text" maxlength="120" /></label>
           <label class="settings-row">Theme
             <select id="theme-preset-select">
               <option value="Dark">Dark</option>
@@ -378,11 +385,10 @@
             </select>
           </label>
           <label class="settings-row">Banner background colour <input id="theme-banner-bg" type="color" /></label>
+          <label class="settings-row">Banner text colour <input id="theme-banner-fg" type="color" /></label>
           <label class="settings-row">Page background colour <input id="theme-page-bg" type="color" /></label>
           <label class="settings-row">Card header background colour <input id="theme-card-header-bg" type="color" /></label>
           <label class="settings-row">Card header text colour <input id="theme-card-header-fg" type="color" /></label>
-          <label class="settings-row">Card body background colour <input id="theme-card-bg" type="color" /></label>
-          <label class="settings-row">Card body text colour <input id="theme-card-fg" type="color" /></label>
           <div class="modal-footer">
             <button id="settings-cancel-btn" type="button" class="subtle-button">Cancel</button>
             <button type="submit" class="subtle-button">Save</button>
