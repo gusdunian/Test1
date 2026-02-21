@@ -14,10 +14,11 @@
         <h2 class="cloud-title">Cloud</h2>
         <div class="cloud-controls">
           <input id="cloud-email-input" type="email" placeholder="you@example.com" autocomplete="email" />
+          <input id="cloud-password-input" type="password" placeholder="Password" autocomplete="current-password" />
           <button id="cloud-sign-in-btn" type="button" class="cloud-btn">Sign in</button>
           <button id="cloud-sign-out-btn" type="button" class="cloud-btn" hidden>Sign out</button>
-          <button id="cloud-push-btn" type="button" class="cloud-btn" disabled>Push</button>
-          <button id="cloud-pull-btn" type="button" class="cloud-btn" disabled>Pull</button>
+          <button id="cloud-push-btn" type="button" class="cloud-btn" disabled hidden>Push</button>
+          <button id="cloud-pull-btn" type="button" class="cloud-btn" disabled hidden>Pull</button>
         </div>
         <div id="cloud-status" class="cloud-status cloud-status-info" role="status" aria-live="polite">Ready</div>
       </section>
@@ -43,14 +44,16 @@
           <div class="action-toolbar">
             <form id="general-add-action-form" class="add-action-form" autocomplete="off">
               <label class="visually-hidden" for="general-action-input">New general action description</label>
-              <textarea
-                id="general-action-input"
-                name="action"
-                maxlength="200"
-                rows="2"
-                placeholder="Enter a new action"
-                required
-              ></textarea>
+              <div class="compact-editor-wrap">
+                <div class="rtf-toolbar" data-editor-target="general-action-input" role="toolbar" aria-label="General action formatting">
+                  <button type="button" data-command="bold" aria-label="Bold">B</button>
+                  <button type="button" data-command="italic" aria-label="Italic">I</button>
+                  <button type="button" data-command="underline" aria-label="Underline">U</button>
+                  <button type="button" data-command="insertUnorderedList" aria-label="Bulleted list">•</button>
+                  <button type="button" data-command="insertOrderedList" aria-label="Numbered list">1.</button>
+                </div>
+                <div id="general-action-input" class="compact-rich-editor" contenteditable="true" role="textbox" aria-multiline="true" data-placeholder="Enter a new action"></div>
+              </div>
               <button type="submit" aria-label="Add action">+</button>
             </form>
             <button id="general-clear-completed-btn" type="button" class="subtle-button">CC</button>
@@ -78,14 +81,16 @@
           <div class="action-toolbar">
             <form id="scheduling-add-action-form" class="add-action-form" autocomplete="off">
               <label class="visually-hidden" for="scheduling-action-input">New scheduling action description</label>
-              <textarea
-                id="scheduling-action-input"
-                name="action"
-                maxlength="200"
-                rows="2"
-                placeholder="Enter a scheduling action"
-                required
-              ></textarea>
+              <div class="compact-editor-wrap">
+                <div class="rtf-toolbar" data-editor-target="scheduling-action-input" role="toolbar" aria-label="Scheduling action formatting">
+                  <button type="button" data-command="bold" aria-label="Bold">B</button>
+                  <button type="button" data-command="italic" aria-label="Italic">I</button>
+                  <button type="button" data-command="underline" aria-label="Underline">U</button>
+                  <button type="button" data-command="insertUnorderedList" aria-label="Bulleted list">•</button>
+                  <button type="button" data-command="insertOrderedList" aria-label="Numbered list">1.</button>
+                </div>
+                <div id="scheduling-action-input" class="compact-rich-editor" contenteditable="true" role="textbox" aria-multiline="true" data-placeholder="Enter a scheduling action"></div>
+              </div>
               <button type="submit" aria-label="Add scheduling action">+</button>
             </form>
             <button id="scheduling-clear-completed-btn" type="button" class="subtle-button">CC</button>
