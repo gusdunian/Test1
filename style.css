@@ -84,6 +84,27 @@ body { margin: 0; font-family: Inter, -apple-system, BlinkMacSystemFont, 'Segoe 
   cursor: not-allowed;
 }
 
+
+.cloud-import-label {
+  display: inline-flex;
+  align-items: center;
+  cursor: pointer;
+}
+
+.cloud-import-label.is-disabled {
+  opacity: 0.6;
+  pointer-events: none;
+}
+
+.cloud-meta {
+  width: 100%;
+  display: grid;
+  gap: 0.2rem;
+  font-size: 0.8rem;
+  color: #e2e8f0;
+  text-align: right;
+}
+
 .cloud-status {
   width: 100%;
   min-height: 2.45rem;
