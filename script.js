@@ -16,7 +16,7 @@
   const CLOUD_LAST_SYNCED_AT_KEY = 'lastSyncedAt';
   const CLOUD_LAST_UPDATED_AT_KEY = 'lastCloudUpdatedAt';
   const LOCAL_STATE_VERSION_KEY = 'dashboardStateVersion';
-  const LATEST_STATE_VERSION = 5;
+  const LATEST_STATE_VERSION = 6;
   const AUTOSYNC_DEBOUNCE_MS = 2000;
 
   const DEFAULT_DASHBOARD_TITLE = 'Angus’ Working Dashboard';
@@ -141,6 +141,7 @@
 
   const collapsedCardsDefault = {
     generalActions: false,
+    personalActions: false,
     bigTicket: false,
     scheduling: false,
     meetingNotes: false,
@@ -159,6 +160,8 @@
   const modalTextInput = document.getElementById('modal-text-input');
   const modalUrgencyBtn = document.getElementById('modal-urgency-btn');
   const modalUrgencyLabel = document.getElementById('modal-urgency-label');
+  const modalTimeDependentBtn = document.getElementById('modal-time-dependent-btn');
+  const modalTimeDependentLabel = document.getElementById('modal-time-dependent-label');
 
   const meetingBigEditModal = document.getElementById('meeting-big-edit-modal');
   const meetingBigEditBackdrop = document.getElementById('meeting-big-edit-backdrop');
@@ -253,6 +256,7 @@
   const appState = {
     stateVersion: LATEST_STATE_VERSION,
     generalActions: [],
+    personalActions: [],
     schedulingActions: [],
     meetingNotes: [],
     bigTicketItems: [],
@@ -298,9 +302,22 @@
       listEl: document.getElementById('general-action-list'),
       clearBtn: document.getElementById('general-clear-completed-btn'),
     },
+    personal: {
+      key: 'personalActions',
+      showDates: true,
+      hideNumber: true,
+      idPrefix: 'pact',
+      actions: [],
+      form: document.getElementById('personal-add-action-form'),
+      input: document.getElementById('personal-action-input'),
+      listEl: document.getElementById('personal-action-list'),
+      clearBtn: document.getElementById('personal-clear-completed-btn'),
+    },
     scheduling: {
       key: SCHEDULING_STORAGE_KEY,
       showDates: false,
+      hideNumber: false,
+      idPrefix: 'act',
       actions: [],
       form: document.getElementById('scheduling-add-action-form'),
       input: document.getElementById('scheduling-action-input'),
@@ -554,35 +571,44 @@
     return formatLocalDate(action.createdAt);
   }
 
-  function normalizeAction(item) {
-    const number = Number(item.number);
-    const text = typeof item.text === 'string' ? item.text.trim() : '';
-    const html = typeof item.html === 'string' ? item.html : '';
-    const createdAt = Number(item.createdAt) || Date.now();
-    const completedAt = Number(item.completedAt) || null;
-    const deletedAt = Number(item.deletedAt) || null;
-    const status = typeof item.status === 'string' ? item.status.toLowerCase() : '';
+  function normalizeAction(item, options = {}) {
+    const requireNumber = options.requireNumber !== false;
+    const number = Number(item?.number);
+    const text = typeof item?.text === 'string' ? item.text.trim() : '';
+    const html = typeof item?.html === 'string' ? item.html : '';
+    const createdAt = Number(item?.createdAt) || Date.now();
+    const completedAt = Number(item?.completedAt) || null;
+    const deletedAt = Number(item?.deletedAt) || null;
+    const status = typeof item?.status === 'string' ? item.status.toLowerCase() : '';
 
-    if (!Number.isInteger(number) || (!text && !html)) return null;
+    if ((requireNumber && !Number.isInteger(number)) || (!text && !html)) return null;
 
-    const completed = Boolean(item.completed || completedAt || status === 'completed');
-    const deleted = Boolean(item.deleted || deletedAt || status === 'deleted');
-    const urgencyLevelRaw = Number.isInteger(item.urgencyLevel) ? item.urgencyLevel : Number.isInteger(item.urgency) ? item.urgency : item.urgent ? 1 : 0;
+    const completed = Boolean(item?.completed || completedAt || status === 'completed');
+    const deleted = Boolean(item?.deleted || deletedAt || status === 'deleted');
+    const urgencyLevelRaw = Number.isInteger(item?.urgencyLevel) ? item.urgencyLevel : Number.isInteger(item?.urgency) ? item.urgency : item?.urgent ? 1 : 0;
     const urgencyLevel = Math.max(0, Math.min(2, urgencyLevelRaw));
 
     const normalized = {
-      number,
       text,
       html,
-      html_inline: richHtmlToInlineHtml(html),
+      html_inline: richHtmlToInlineHtml(typeof item?.html_inline === 'string' ? item.html_inline : html),
       createdAt,
       completed,
       deleted,
       urgencyLevel,
-      updatedAt: Number(item.updatedAt) || createdAt,
+      timeDependent: Boolean(item?.timeDependent),
+      updatedAt: Number(item?.updatedAt) || createdAt,
       completedAt: completed ? completedAt || createdAt : null,
       deletedAt: deleted ? deletedAt || createdAt : null,
     };
+
+    if (requireNumber) {
+      normalized.number = number;
+    } else {
+      normalized.id = typeof item?.id === 'string' && item.id
+        ? item.id
+        : `${options.idPrefix || 'act'}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    }
 
     ensureActionRichContent(normalized);
     return normalized;
@@ -655,7 +681,13 @@
   function loadList(list) {
     try {
       const raw = localStorage.getItem(list.key);
-      list.actions = raw ? (Array.isArray(JSON.parse(raw)) ? JSON.parse(raw).map(normalizeAction).filter(Boolean) : []) : [];
+      list.actions = raw
+        ? (Array.isArray(JSON.parse(raw))
+          ? JSON.parse(raw)
+            .map((item) => normalizeAction(item, { requireNumber: !list.hideNumber, idPrefix: list.idPrefix }))
+            .filter(Boolean)
+          : [])
+        : [];
     } catch {
       list.actions = [];
     }
@@ -764,8 +796,9 @@
     const versionValue = Number(incoming.stateVersion);
     const baseState = {
       stateVersion: Number.isInteger(versionValue) && versionValue > 0 ? versionValue : 1,
-      generalActions: Array.isArray(incoming.generalActions) ? incoming.generalActions.map(normalizeAction).filter(Boolean) : [],
-      schedulingActions: Array.isArray(incoming.schedulingActions) ? incoming.schedulingActions.map(normalizeAction).filter(Boolean) : [],
+      generalActions: Array.isArray(incoming.generalActions) ? incoming.generalActions.map((item) => normalizeAction(item, { requireNumber: true, idPrefix: 'act' })).filter(Boolean) : [],
+      personalActions: Array.isArray(incoming.personalActions) ? incoming.personalActions.map((item) => normalizeAction(item, { requireNumber: false, idPrefix: 'pact' })).filter(Boolean) : [],
+      schedulingActions: Array.isArray(incoming.schedulingActions) ? incoming.schedulingActions.map((item) => normalizeAction(item, { requireNumber: true, idPrefix: 'act' })).filter(Boolean) : [],
       meetingNotes: Array.isArray(incoming.meetingNotes) ? incoming.meetingNotes.map(normalizeMeeting).filter(Boolean) : [],
       bigTicketItems: Array.isArray(incoming.bigTicketItems) ? incoming.bigTicketItems.map(normalizeBigTicketItem).filter(Boolean) : [],
       generalNotes: Array.isArray(incoming.generalNotes) ? incoming.generalNotes.map(normalizeGeneralNote).filter(Boolean) : [],
@@ -822,6 +855,21 @@
       baseState.stateVersion = 5;
     }
 
+
+    if (baseState.stateVersion < 6) {
+      baseState.generalActions = baseState.generalActions.map((item) => ({ ...item, timeDependent: Boolean(item.timeDependent) }));
+      baseState.schedulingActions = baseState.schedulingActions.map((item) => ({ ...item, timeDependent: Boolean(item.timeDependent) }));
+      baseState.personalActions = Array.isArray(baseState.personalActions) ? baseState.personalActions.map((item) => ({ ...item, timeDependent: Boolean(item.timeDependent) })) : [];
+      baseState.ui = {
+        ...baseState.ui,
+        collapsedCards: {
+          ...collapsedCardsDefault,
+          ...(baseState.ui.collapsedCards && typeof baseState.ui.collapsedCards === 'object' ? baseState.ui.collapsedCards : {}),
+        },
+      };
+      baseState.stateVersion = 6;
+    }
+
     if (baseState.stateVersion < LATEST_STATE_VERSION) {
       baseState.stateVersion = LATEST_STATE_VERSION;
     }
@@ -859,6 +907,7 @@
     return migrateState({
       stateVersion: appState.stateVersion,
       generalActions: appState.generalActions,
+      personalActions: appState.personalActions,
       schedulingActions: appState.schedulingActions,
       meetingNotes: appState.meetingNotes,
       bigTicketItems: appState.bigTicketItems,
@@ -872,6 +921,7 @@
   function syncAppStateFromMemory() {
     appState.stateVersion = LATEST_STATE_VERSION;
     appState.generalActions = lists.general.actions;
+    appState.personalActions = lists.personal.actions;
     appState.schedulingActions = lists.scheduling.actions;
     appState.meetingNotes = meeting.items;
     appState.bigTicketItems = bigTicket.items;
@@ -894,6 +944,7 @@
     const state = migrateState(stateObj);
     withAutosyncSuppressed(() => {
       localStorage.setItem(GENERAL_STORAGE_KEY, JSON.stringify(state.generalActions));
+      localStorage.setItem('personalActions', JSON.stringify(state.personalActions));
       localStorage.setItem(SCHEDULING_STORAGE_KEY, JSON.stringify(state.schedulingActions));
       localStorage.setItem(MEETING_STORAGE_KEY, JSON.stringify(state.meetingNotes));
       localStorage.setItem('bigTicketItems', JSON.stringify(state.bigTicketItems));
@@ -1014,7 +1065,7 @@
   }
 
   function renderSignedOutState() {
-    [lists.general, lists.scheduling].forEach((list) => {
+    [lists.general, lists.personal, lists.scheduling].forEach((list) => {
       list.listEl.innerHTML = '';
     });
     meeting.listEl.innerHTML = '';
@@ -1026,7 +1077,7 @@
     const signedIn = Boolean(cloud.signedInUser);
     isAuthenticated = signedIn;
 
-    [lists.general, lists.scheduling].forEach((list) => {
+    [lists.general, lists.personal, lists.scheduling].forEach((list) => {
       list.form.hidden = !signedIn;
       list.clearBtn.hidden = !signedIn;
     });
@@ -1052,7 +1103,7 @@
     }
 
     if (options.deferRender) {
-      [lists.general, lists.scheduling].forEach((list) => {
+      [lists.general, lists.personal, lists.scheduling].forEach((list) => {
         list.listEl.innerHTML = '';
       });
       meeting.listEl.innerHTML = '';
@@ -1068,6 +1119,7 @@
     return migrateState({
       stateVersion: LATEST_STATE_VERSION,
       generalActions: [],
+      personalActions: [],
       schedulingActions: [],
       meetingNotes: [],
       bigTicketItems: [],
@@ -1090,6 +1142,7 @@
 
       migrateLegacyGeneralData();
       loadList(lists.general);
+      loadList(lists.personal);
       loadList(lists.scheduling);
       loadMeetings();
       loadMeetingUIState();
@@ -1105,6 +1158,7 @@
 
       localStorage.setItem(LOCAL_STATE_VERSION_KEY, String(LATEST_STATE_VERSION));
       saveList(lists.general);
+      saveList(lists.personal);
       saveList(lists.scheduling);
       saveMeetings();
       saveBigTicketItems();
@@ -1115,13 +1169,18 @@
   }
 
   function sortNewestFirst(a, b) {
-    return b.createdAt - a.createdAt || b.number - a.number;
+    return b.createdAt - a.createdAt || (Number(b.number) || 0) - (Number(a.number) || 0);
+  }
+
+  function sortWithinUrgencyTier(a, b) {
+    return Number(b.timeDependent) - Number(a.timeDependent) || sortNewestFirst(a, b);
   }
 
   function getOrderedActions(list) {
-    const superUrgent = list.actions.filter((i) => !i.deleted && !i.completed && i.urgencyLevel === 2).sort(sortNewestFirst);
-    const urgent = list.actions.filter((i) => !i.deleted && !i.completed && i.urgencyLevel === 1).sort(sortNewestFirst);
-    const normal = list.actions.filter((i) => !i.deleted && !i.completed && i.urgencyLevel === 0).sort(sortNewestFirst);
+    const active = list.actions.filter((i) => !i.deleted && !i.completed);
+    const superUrgent = active.filter((i) => i.urgencyLevel === 2).sort(sortWithinUrgencyTier);
+    const urgent = active.filter((i) => i.urgencyLevel === 1).sort(sortWithinUrgencyTier);
+    const normal = active.filter((i) => i.urgencyLevel === 0).sort(sortWithinUrgencyTier);
     const completed = list.actions.filter((i) => !i.deleted && i.completed).sort((a, b) => (b.completedAt || 0) - (a.completedAt || 0));
     const deleted = list.actions.filter((i) => i.deleted).sort((a, b) => (b.deletedAt || 0) - (a.deletedAt || 0));
     return [...superUrgent, ...urgent, ...normal, ...completed, ...deleted];
@@ -1149,6 +1208,13 @@
     modalUrgencyBtn.classList.toggle('super', action.urgencyLevel === 2);
     modalUrgencyBtn.textContent = action.urgencyLevel === 2 ? '!!' : '!';
     modalUrgencyBtn.disabled = action.deleted;
+  }
+
+  function updateModalTimeDependentUI(action) {
+    if (!modalTimeDependentBtn || !modalTimeDependentLabel) return;
+    modalTimeDependentBtn.classList.toggle('active', Boolean(action.timeDependent));
+    modalTimeDependentBtn.disabled = action.deleted;
+    modalTimeDependentLabel.hidden = !action.timeDependent;
   }
 
   function renderList(list) {
@@ -1182,9 +1248,12 @@
         renderList(list);
       });
 
+      const actionKey = list.hideNumber ? action.id : action.number;
+
       const number = document.createElement('span');
       number.className = 'action-number';
-      number.textContent = String(action.number);
+      number.textContent = list.hideNumber ? '' : String(action.number);
+      if (list.hideNumber) number.hidden = true;
 
       const textWrap = document.createElement('div');
       textWrap.className = 'action-text-wrap';
@@ -1208,7 +1277,7 @@
       expandBtn.hidden = true;
       expandBtn.addEventListener('click', (event) => {
         event.stopPropagation();
-        openModal(list, action.number);
+        openModal(list, actionKey);
       });
       textWrap.appendChild(expandBtn);
 
@@ -1225,6 +1294,21 @@
       urgentBtn.addEventListener('click', (event) => {
         event.stopPropagation();
         cycleUrgency(action);
+        saveList(list);
+        renderList(list);
+      });
+
+      const timeDependentBtn = document.createElement('button');
+      timeDependentBtn.type = 'button';
+      timeDependentBtn.className = 'icon-btn time-dependent-btn';
+      timeDependentBtn.disabled = action.deleted;
+      timeDependentBtn.textContent = 'T';
+      timeDependentBtn.classList.toggle('active', Boolean(action.timeDependent));
+      timeDependentBtn.setAttribute('aria-label', 'Toggle time-dependent');
+      timeDependentBtn.addEventListener('click', (event) => {
+        event.stopPropagation();
+        action.timeDependent = !action.timeDependent;
+        action.updatedAt = Date.now();
         saveList(list);
         renderList(list);
       });
@@ -1247,13 +1331,13 @@
         renderList(list);
       });
 
-      controls.append(urgentBtn, deleteBtn);
+      controls.append(urgentBtn, timeDependentBtn, deleteBtn);
       li.append(checkbox, number, textWrap, controls);
       li.addEventListener('click', (event) => {
         if (event.target.closest('.action-controls') || event.target.closest('.action-text-toggle') || event.target.closest('input[type="checkbox"]')) {
           return;
         }
-        openModal(list, action.number);
+        openModal(list, actionKey);
       });
       list.listEl.appendChild(li);
       requestAnimationFrame(() => updateRowTruncation(li));
@@ -1741,12 +1825,14 @@
     }
     console.debug('[renderAll]', {
       generalActions: lists.general.actions.length,
+      personalActions: lists.personal.actions.length,
       schedulingActions: lists.scheduling.actions.length,
       bigTicketItems: bigTicket.items.length,
       meetingNotes: meeting.items.length,
       generalNotes: generalNotes.items.length,
     });
     renderList(lists.general);
+    renderList(lists.personal);
     renderList(lists.scheduling);
     renderBigTicketItems();
     renderMeetings();
@@ -1759,22 +1845,31 @@
     const html = sanitizeRichHtml(rawHtml);
     const text = htmlToPlainText(html);
     if (!text) return;
-    list.actions.unshift({
-      number: nextActionNumber,
+    const now = Date.now();
+    const item = {
       text,
       html,
       html_inline: richHtmlToInlineHtml(html),
-      createdAt: Date.now(),
-      updatedAt: Date.now(),
+      createdAt: now,
+      updatedAt: now,
       completed: false,
       deleted: false,
       urgencyLevel: 0,
+      timeDependent: false,
       completedAt: null,
       deletedAt: null,
-    });
-    nextActionNumber += 1;
+    };
+
+    if (list.hideNumber) {
+      item.id = `${list.idPrefix || 'pact'}-${now}-${Math.random().toString(16).slice(2)}`;
+    } else {
+      item.number = nextActionNumber;
+      nextActionNumber += 1;
+      saveNextNumber();
+    }
+
+    list.actions.unshift(item);
     saveList(list);
-    saveNextNumber();
     renderList(list);
   }
 
@@ -2004,27 +2099,32 @@
     const completed = action.completed ? `Completed: ${formatLocalDate(action.completedAt)}` : null;
     const deleted = action.deleted ? `Deleted: ${formatLocalDate(action.deletedAt)}` : null;
     const urgency = action.urgencyLevel === 2 ? 'Super urgent' : action.urgencyLevel === 1 ? 'Urgent' : null;
-    return [deleted || completed || created, created, completed, deleted, urgency].filter(Boolean).join(' • ');
+    const timeDependent = action.timeDependent ? 'Time-dependent' : null;
+    return [deleted || completed || created, created, completed, deleted, urgency, timeDependent].filter(Boolean).join(' • ');
   }
 
-  function findActionByNumber(list, number) {
-    return list.actions.find((item) => item.number === number) || null;
+  function findActionForList(list, actionKey) {
+    if (list.hideNumber) {
+      return list.actions.find((item) => item.id === actionKey) || null;
+    }
+    return list.actions.find((item) => item.number === actionKey) || null;
   }
 
   function getActiveModalAction() {
     if (!activeModalContext) return null;
-    return findActionByNumber(activeModalContext.list, activeModalContext.actionNumber);
+    return findActionForList(activeModalContext.list, activeModalContext.actionKey);
   }
 
-  function openModal(list, actionNumber) {
-    const action = findActionByNumber(list, actionNumber);
+  function openModal(list, actionKey) {
+    const action = findActionForList(list, actionKey);
     if (!action) return;
     ensureActionRichContent(action);
-    activeModalContext = { list, actionNumber };
-    modalTitle.textContent = `${action.number}`;
+    activeModalContext = { list, actionKey };
+    modalTitle.textContent = list.hideNumber ? 'Action details' : `${action.number}`;
     modalStatus.textContent = modalStatusText(action);
     modalTextInput.innerHTML = action.html;
     updateModalUrgencyUI(action);
+    updateModalTimeDependentUI(action);
     modal.hidden = false;
     modalTextInput.focus();
   }
@@ -2407,6 +2507,7 @@
       ...currentState,
       generalActions: dedupeActionsByNumber([...currentState.generalActions, ...importedState.generalActions]),
       schedulingActions: dedupeActionsByNumber([...currentState.schedulingActions, ...importedState.schedulingActions]),
+      personalActions: mergeById(currentState.personalActions || [], importedState.personalActions || [], (item) => normalizeAction(item, { requireNumber: false, idPrefix: 'pact' })),
       bigTicketItems: mergeById(currentState.bigTicketItems, importedState.bigTicketItems, normalizeBigTicketItem),
       meetingNotes: mergeById(currentState.meetingNotes, importedState.meetingNotes, normalizeMeeting),
       generalNotes: mergeById(currentState.generalNotes, importedState.generalNotes, normalizeGeneralNote),
@@ -2601,6 +2702,7 @@
   document.querySelectorAll('.rtf-toolbar').forEach(bindRtfToolbar);
   bindEditorShortcuts(modalTextInput);
   bindEditorShortcuts(lists.general.input);
+  bindEditorShortcuts(lists.personal.input);
   bindEditorShortcuts(lists.scheduling.input);
   bindEditorShortcuts(meeting.notesEditor);
   bindEditorShortcuts(meetingBigEditNotesEditor);
@@ -2620,9 +2722,22 @@
     saveList(activeModalContext.list);
     modalStatus.textContent = modalStatusText(action);
     updateModalUrgencyUI(action);
+    updateModalTimeDependentUI(action);
     renderList(activeModalContext.list);
   });
 
+  if (modalTimeDependentBtn) {
+    modalTimeDependentBtn.addEventListener('click', () => {
+      const action = getActiveModalAction();
+      if (!action || !activeModalContext || action.deleted) return;
+      action.timeDependent = !action.timeDependent;
+      action.updatedAt = Date.now();
+      saveList(activeModalContext.list);
+      modalStatus.textContent = modalStatusText(action);
+      updateModalTimeDependentUI(action);
+      renderList(activeModalContext.list);
+    });
+  }
 
   meetingBigEditForm.addEventListener('submit', (event) => {
     event.preventDefault();
@@ -2708,6 +2823,7 @@
   });
 
   bindListEvents(lists.general);
+  bindListEvents(lists.personal);
   bindListEvents(lists.scheduling);
   bindMeetingEvents();
   bindBigTicketEvents();
