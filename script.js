@@ -15,9 +15,12 @@
   const CLOUD_LAST_PULL_KEY = 'lastPullAt';
   const CLOUD_LAST_SYNCED_AT_KEY = 'lastSyncedAt';
   const CLOUD_LAST_UPDATED_AT_KEY = 'lastCloudUpdatedAt';
+  const LOCAL_DIRTY_SINCE_KEY = 'localDirtySince';
   const LOCAL_STATE_VERSION_KEY = 'dashboardStateVersion';
-  const LATEST_STATE_VERSION = 7;
+  const LATEST_STATE_VERSION = 8;
   const AUTOSYNC_DEBOUNCE_MS = 2000;
+  const FOCUS_SYNC_DEBOUNCE_MS = 700;
+  const PERSON_TAG_REGEX = /(^|[\s(>])(@[A-Za-z0-9_-]+)/g;
 
   const DEFAULT_DASHBOARD_TITLE = 'Angus’ Working Dashboard';
 
@@ -189,6 +192,10 @@
   const signedOutMessage = document.getElementById('signed-out-message');
   const dashboardTitleEl = document.getElementById('dashboard-title');
   const dashboardDateEl = document.getElementById('dashboard-date');
+  const generalPersonFilterSelect = document.getElementById('general-person-filter');
+  const schedulingPersonFilterSelect = document.getElementById('scheduling-person-filter');
+  const generalPersonCountEl = document.getElementById('general-person-filter-count');
+  const schedulingPersonCountEl = document.getElementById('scheduling-person-filter-count');
 
   const settingsBtn = document.getElementById('cloud-settings-btn');
   const settingsModal = document.getElementById('settings-modal');
@@ -251,6 +258,7 @@
     collapsedGeneralNotesMonths: {},
     theme: { presetName: 'Office Blue', vars: { ...defaultTheme } },
     dashboardTitle: DEFAULT_DASHBOARD_TITLE,
+    personFilter: 'All',
   };
 
   const appState = {
@@ -266,6 +274,7 @@
       collapsedGeneralNotesMonths: {},
       theme: { presetName: 'Office Blue', vars: { ...defaultTheme } },
       dashboardTitle: DEFAULT_DASHBOARD_TITLE,
+      personFilter: 'All',
     },
     meetingNotesUIState: { collapsedMonths: {}, collapsedWeeks: {} },
     nextActionNumber: DEFAULT_NEXT_NUMBER,
@@ -288,6 +297,9 @@
     busy: false,
     loadingContext: '',
     syncInFlight: false,
+    refreshInFlight: false,
+    focusRefreshTimer: null,
+    importInProgress: false,
     lastCloudUpdatedAt: localStorage.getItem(CLOUD_LAST_UPDATED_AT_KEY) || null,
     lastSyncedAt: localStorage.getItem(CLOUD_LAST_SYNCED_AT_KEY) || null,
   };
@@ -340,6 +352,7 @@
   let settingsThemeDraft = null;
   let settingsThemeSavedSnapshot = null;
   let suppressThemePresetSync = false;
+  let localDirtySince = Number(localStorage.getItem(LOCAL_DIRTY_SINCE_KEY)) || null;
 
   function escapeHtml(text) {
     return String(text || '')
@@ -393,6 +406,47 @@
     const container = document.createElement('div');
     container.innerHTML = html || '';
     return (container.textContent || '').replace(/\s+/g, ' ').trim();
+  }
+
+  function markLocalDirty() {
+    localDirtySince = Date.now();
+    localStorage.setItem(LOCAL_DIRTY_SINCE_KEY, String(localDirtySince));
+  }
+
+  function clearLocalDirty() {
+    localDirtySince = null;
+    localStorage.removeItem(LOCAL_DIRTY_SINCE_KEY);
+  }
+
+  function extractPersonTagsFromAction(action) {
+    const sourceText = (typeof action?.text === 'string' && action.text.trim())
+      ? action.text
+      : htmlToPlainText(action?.html || action?.html_inline || '');
+    if (!sourceText) return [];
+
+    const matches = new Map();
+    const regex = new RegExp(PERSON_TAG_REGEX);
+    let match;
+    while ((match = regex.exec(sourceText)) !== null) {
+      const tag = match[2];
+      const key = tag.toLowerCase();
+      if (!matches.has(key)) matches.set(key, tag);
+    }
+    return Array.from(matches.values());
+  }
+
+  function collectPersonTags() {
+    const unique = new Map();
+    [lists.general.actions, lists.scheduling.actions, bigTicket.items].forEach((items) => {
+      items.forEach((item) => {
+        extractPersonTagsFromAction(item).forEach((tag) => {
+          const key = tag.toLowerCase();
+          if (!unique.has(key)) unique.set(key, tag);
+        });
+      });
+    });
+
+    return Array.from(unique.values()).sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
   }
 
   function richHtmlToInlineHtml(html) {
@@ -638,42 +692,49 @@
 
   function saveList(list) {
     syncAppStateFromMemory();
+    markLocalDirty();
     localStorage.setItem(list.key, JSON.stringify(list.actions));
     if (!suppressAutosync) requestAutosync();
   }
 
   function saveMeetings() {
     syncAppStateFromMemory();
+    markLocalDirty();
     localStorage.setItem(MEETING_STORAGE_KEY, JSON.stringify(meeting.items));
     if (!suppressAutosync) requestAutosync();
   }
 
   function saveBigTicketItems() {
     syncAppStateFromMemory();
+    markLocalDirty();
     localStorage.setItem('bigTicketItems', JSON.stringify(bigTicket.items));
     if (!suppressAutosync) requestAutosync();
   }
 
   function saveGeneralNotes() {
     syncAppStateFromMemory();
+    markLocalDirty();
     localStorage.setItem('generalNotes', JSON.stringify(generalNotes.items));
     if (!suppressAutosync) requestAutosync();
   }
 
   function saveUiState() {
     syncAppStateFromMemory();
+    markLocalDirty();
     localStorage.setItem('dashboardUiState', JSON.stringify(uiState));
     if (!suppressAutosync) requestAutosync();
   }
 
   function saveMeetingUIState() {
     syncAppStateFromMemory();
+    markLocalDirty();
     localStorage.setItem(MEETING_UI_STORAGE_KEY, JSON.stringify(meeting.uiState));
     if (!suppressAutosync) requestAutosync();
   }
 
   function saveNextNumber() {
     syncAppStateFromMemory();
+    markLocalDirty();
     localStorage.setItem(NEXT_NUMBER_STORAGE_KEY, String(nextActionNumber));
     localStorage.setItem(LOCAL_STATE_VERSION_KEY, String(LATEST_STATE_VERSION));
     if (!suppressAutosync) requestAutosync();
@@ -759,6 +820,9 @@
     uiState.dashboardTitle = typeof parsed?.dashboardTitle === 'string' && parsed.dashboardTitle.trim()
       ? parsed.dashboardTitle.trim()
       : DEFAULT_DASHBOARD_TITLE;
+    uiState.personFilter = typeof parsed?.personFilter === 'string' && parsed.personFilter.trim()
+      ? parsed.personFilter.trim()
+      : 'All';
     generalNotes.uiState.collapsedMonths = uiState.collapsedGeneralNotesMonths;
     applyTheme(uiState.theme.vars);
   }
@@ -894,6 +958,9 @@
       dashboardTitle: typeof baseState.ui.dashboardTitle === 'string' && baseState.ui.dashboardTitle.trim()
         ? baseState.ui.dashboardTitle.trim()
         : DEFAULT_DASHBOARD_TITLE,
+      personFilter: typeof baseState.ui.personFilter === 'string' && baseState.ui.personFilter.trim()
+        ? baseState.ui.personFilter.trim()
+        : 'All',
     };
 
     const highest = Math.max(DEFAULT_NEXT_NUMBER - 1, ...baseState.generalActions.map((i) => i.number), ...baseState.schedulingActions.map((i) => i.number));
@@ -941,6 +1008,7 @@
       collapsedGeneralNotesMonths: uiState.collapsedGeneralNotesMonths,
       theme: uiState.theme,
       dashboardTitle: uiState.dashboardTitle,
+      personFilter: uiState.personFilter || 'All',
     };
     appState.meetingNotesUIState = meeting.uiState;
     appState.nextActionNumber = nextActionNumber;
@@ -950,7 +1018,13 @@
     return getStateSnapshotFromMemory();
   }
 
-  function setLocalDashboardState(stateObj) {
+  function hydrateFromLocalCacheAndRender() {
+    loadData();
+    syncAppStateFromMemory();
+    renderAll();
+  }
+
+  function setLocalDashboardState(stateObj, options = {}) {
     const state = migrateState(stateObj);
     withAutosyncSuppressed(() => {
       localStorage.setItem(GENERAL_STORAGE_KEY, JSON.stringify(state.generalActions));
@@ -965,6 +1039,11 @@
       localStorage.setItem(LOCAL_STATE_VERSION_KEY, String(state.stateVersion || LATEST_STATE_VERSION));
       loadData();
       syncAppStateFromMemory();
+      if (options.markDirty) {
+        markLocalDirty();
+      } else {
+        clearLocalDirty();
+      }
       renderAll();
     });
   }
@@ -1113,12 +1192,6 @@
     }
 
     if (options.deferRender) {
-      [lists.general, lists.personal, lists.scheduling].forEach((list) => {
-        list.listEl.innerHTML = '';
-      });
-      meeting.listEl.innerHTML = '';
-    bigTicket.listEl.innerHTML = '';
-    generalNotes.listEl.innerHTML = '';
       return;
     }
 
@@ -1139,6 +1212,7 @@
       collapsedGeneralNotesMonths: {},
       theme: { presetName: 'Office Blue', vars: { ...defaultTheme } },
       dashboardTitle: DEFAULT_DASHBOARD_TITLE,
+      personFilter: 'All',
     },
       meetingNotesUIState: { collapsedMonths: {}, collapsedWeeks: {} },
       nextActionNumber: DEFAULT_NEXT_NUMBER,
@@ -1227,18 +1301,72 @@
     modalTimeDependentLabel.hidden = !action.timeDependent;
   }
 
+  function getSelectedPersonFilter() {
+    const value = typeof uiState.personFilter === 'string' && uiState.personFilter.trim() ? uiState.personFilter.trim() : 'All';
+    return value;
+  }
+
+  function setPersonFilter(value) {
+    uiState.personFilter = typeof value === 'string' && value.trim() ? value.trim() : 'All';
+    saveUiState();
+    renderAll();
+  }
+
+  function actionHasPersonTag(action, selectedFilter) {
+    if (!selectedFilter || selectedFilter === 'All') return true;
+    const selectedLower = selectedFilter.toLowerCase();
+    return extractPersonTagsFromAction(action).some((tag) => tag.toLowerCase() === selectedLower);
+  }
+
+  function renderPersonFilterControls() {
+    const tags = collectPersonTags();
+    const selected = getSelectedPersonFilter();
+    const validSelected = selected === 'All' || tags.some((tag) => tag.toLowerCase() === selected.toLowerCase());
+    if (!validSelected) {
+      uiState.personFilter = 'All';
+      saveUiState();
+    }
+    const effectiveSelected = validSelected ? selected : 'All';
+
+    [generalPersonFilterSelect, schedulingPersonFilterSelect].forEach((selectEl) => {
+      if (!selectEl) return;
+      selectEl.innerHTML = '';
+      const allOption = document.createElement('option');
+      allOption.value = 'All';
+      allOption.textContent = 'All';
+      selectEl.appendChild(allOption);
+      tags.forEach((tag) => {
+        const option = document.createElement('option');
+        option.value = tag;
+        option.textContent = tag;
+        selectEl.appendChild(option);
+      });
+      const selectedTag = tags.find((tag) => tag.toLowerCase() === effectiveSelected.toLowerCase());
+      selectEl.value = effectiveSelected === 'All' ? 'All' : (selectedTag || 'All');
+    });
+  }
+
   function renderList(list) {
     list.listEl.innerHTML = '';
     const ordered = getOrderedActions(list);
-    if (!ordered.length) {
+    const selectedPerson = getSelectedPersonFilter();
+    const usePersonFilter = list.key === GENERAL_STORAGE_KEY || list.key === SCHEDULING_STORAGE_KEY;
+    const visible = usePersonFilter ? ordered.filter((action) => actionHasPersonTag(action, selectedPerson)) : ordered;
+    const totalCount = ordered.length;
+    const visibleCount = visible.length;
+
+    if (!visible.length) {
       const empty = document.createElement('li');
       empty.className = 'coming-soon';
-      empty.textContent = 'No actions yet. Add one to get started.';
+      empty.textContent = !usePersonFilter || selectedPerson === 'All' ? 'No actions yet. Add one to get started.' : 'No actions match this person filter.';
       list.listEl.appendChild(empty);
+      const countLabel = usePersonFilter && selectedPerson !== 'All' ? `Showing 0 of ${totalCount}` : '';
+      if (list.key === GENERAL_STORAGE_KEY && generalPersonCountEl) generalPersonCountEl.textContent = countLabel;
+      if (list.key === SCHEDULING_STORAGE_KEY && schedulingPersonCountEl) schedulingPersonCountEl.textContent = countLabel;
       return;
     }
 
-    ordered.forEach((action) => {
+    visible.forEach((action) => {
       const li = document.createElement('li');
       li.className = 'action-item';
       if (action.completed) li.classList.add('completed');
@@ -1353,6 +1481,10 @@
       list.listEl.appendChild(li);
       requestAnimationFrame(() => updateRowTruncation(li));
     });
+
+    const countLabel = usePersonFilter && selectedPerson !== 'All' ? `Showing ${visibleCount} of ${totalCount}` : '';
+    if (list.key === GENERAL_STORAGE_KEY && generalPersonCountEl) generalPersonCountEl.textContent = countLabel;
+    if (list.key === SCHEDULING_STORAGE_KEY && schedulingPersonCountEl) schedulingPersonCountEl.textContent = countLabel;
   }
 
   function getSortedMeetings() {
@@ -1902,6 +2034,7 @@
       meetingNotes: meeting.items.length,
       generalNotes: generalNotes.items.length,
     });
+    renderPersonFilterControls();
     renderList(lists.general);
     renderList(lists.personal);
     renderList(lists.scheduling);
@@ -2393,6 +2526,25 @@
     return data || null;
   }
 
+  async function fetchCloudUpdatedAt(userId) {
+    const { data, error } = await sb.from('dashboard_state')
+      .select('updated_at')
+      .eq('user_id', userId)
+      .maybeSingle();
+
+    if (error) {
+      setStatus(`Sync error: ${error.message}`, 'error');
+      return { ok: false, updatedAt: null };
+    }
+    return { ok: true, updatedAt: data?.updated_at || null };
+  }
+
+  function isCloudNewerThanLastKnown(cloudUpdatedAt) {
+    if (!cloudUpdatedAt) return false;
+    if (!cloud.lastCloudUpdatedAt) return true;
+    return new Date(cloudUpdatedAt).getTime() > new Date(cloud.lastCloudUpdatedAt).getTime();
+  }
+
   async function pullCloudState(options = {}) {
     const user = cloud.signedInUser;
     if (!user) {
@@ -2431,19 +2583,14 @@
       return false;
     }
 
-    const { data: freshMeta, error: metaError } = await sb.from('dashboard_state')
-      .select('updated_at')
-      .eq('user_id', user.id)
-      .maybeSingle();
+    const meta = await fetchCloudUpdatedAt(user.id);
+    if (!meta.ok) return false;
 
-    if (metaError) {
-      setStatus(`Sync check failed: ${metaError.message}`, 'error');
-      return false;
-    }
-
-    const remoteUpdatedAt = freshMeta?.updated_at || null;
-    if (remoteUpdatedAt && cloud.lastCloudUpdatedAt && new Date(remoteUpdatedAt).getTime() > new Date(cloud.lastCloudUpdatedAt).getTime()) {
-      showToast('Cloud updated elsewhere, reloading latest', 'warning');
+    if (isCloudNewerThanLastKnown(meta.updatedAt)) {
+      const recentDirty = localDirtySince && (Date.now() - localDirtySince) < 5 * 60 * 1000;
+      showToast(recentDirty
+        ? 'Cloud updated elsewhere — reloaded latest to avoid overwriting.'
+        : 'Updated from another device', 'warning');
       await pullCloudState({ silentSuccess: true });
       return 'conflict';
     }
@@ -2463,13 +2610,14 @@
 
     localStorage.setItem(CLOUD_LAST_PUSH_KEY, nowIso);
     markLastSynced(nowIso, nowIso);
+    clearLocalDirty();
     if (!options.silentSuccess) {
     }
     return true;
   }
 
   function requestAutosync() {
-    if (suppressAutosync || !isAuthenticated || !cloud.signedInUser) return;
+    if (suppressAutosync || cloud.importInProgress || !isAuthenticated || !cloud.signedInUser) return;
     autosyncPending = true;
     if (autosyncTimer) {
       window.clearTimeout(autosyncTimer);
@@ -2503,6 +2651,38 @@
       autosyncInFlight = false;
       setSyncIndicator(false);
     }
+  }
+
+  async function refreshFromCloudIfNewer(options = {}) {
+    if (!cloud.signedInUser || cloud.importInProgress || cloud.refreshInFlight) return false;
+    cloud.refreshInFlight = true;
+    setSyncIndicator(true);
+    try {
+      const meta = await fetchCloudUpdatedAt(cloud.signedInUser.id);
+      if (!meta.ok || !meta.updatedAt) return false;
+      if (!isCloudNewerThanLastKnown(meta.updatedAt)) return false;
+      const recentDirty = localDirtySince && (Date.now() - localDirtySince) < 5 * 60 * 1000;
+      await pullCloudState({ silentSuccess: true });
+      showToast(recentDirty
+        ? 'Cloud updated elsewhere — reloaded latest to avoid overwriting.'
+        : 'Updated from another device', recentDirty ? 'warning' : 'info');
+      return true;
+    } finally {
+      cloud.refreshInFlight = false;
+      setSyncIndicator(false);
+    }
+  }
+
+  function scheduleFocusRefresh() {
+    if (!cloud.signedInUser || cloud.importInProgress) return;
+    hydrateFromLocalCacheAndRender();
+    if (cloud.focusRefreshTimer) window.clearTimeout(cloud.focusRefreshTimer);
+    cloud.focusRefreshTimer = window.setTimeout(() => {
+      cloud.focusRefreshTimer = null;
+      refreshFromCloudIfNewer().catch((error) => {
+        setStatus(`Sync error: ${error.message}`, 'error');
+      });
+    }, FOCUS_SYNC_DEBOUNCE_MS);
   }
 
   async function exportCloudBackup() {
@@ -2587,6 +2767,7 @@
         collapsedGeneralNotesMonths: currentState.ui?.collapsedGeneralNotesMonths || importedState.ui?.collapsedGeneralNotesMonths || {},
         theme: currentState.ui?.theme || importedState.ui?.theme || normalizeThemeState(defaultTheme),
         dashboardTitle: currentState.ui?.dashboardTitle || importedState.ui?.dashboardTitle || DEFAULT_DASHBOARD_TITLE,
+        personFilter: currentState.ui?.personFilter || importedState.ui?.personFilter || 'All',
       },
       meetingNotesUIState: currentState.meetingNotesUIState || importedState.meetingNotesUIState || { collapsedMonths: {}, collapsedWeeks: {} },
       stateVersion: LATEST_STATE_VERSION,
@@ -2598,6 +2779,7 @@
   async function importCloudBackup(file, mode) {
     if (!file || !cloud.signedInUser || cloud.busy || !mode) return false;
     setLoading(true, 'import');
+    cloud.importInProgress = true;
     try {
       const text = await file.text();
       const parsed = JSON.parse(text);
@@ -2621,7 +2803,7 @@
       }
       finalState.nextActionNumber = computeNextActionNumber(finalState);
 
-      setLocalDashboardState(finalState);
+      setLocalDashboardState(finalState, { markDirty: true });
       const result = await pushCloudState({ silentSuccess: true });
       if (!result || result === 'conflict') {
         setStatus(`Imported (${mode}) locally; cloud sync needs retry.`, 'warning');
@@ -2635,6 +2817,7 @@
       setStatus(`Import failed: ${error.message}`, 'error');
       return false;
     } finally {
+      cloud.importInProgress = false;
       importFileInput.value = '';
       setLoading(false);
     }
@@ -2658,22 +2841,24 @@
     }
 
     if (event === 'SIGNED_IN' || event === 'INITIAL_SESSION') {
-      setLoading(true, 'authLoad');
-      try {
-        const row = await fetchCloudStateRow(cloud.signedInUser.id);
-        if (row && row.state) {
+      hydrateFromLocalCacheAndRender();
+      setLoading(false);
+
+      await refreshFromCloudIfNewer({ reason: 'auth' });
+
+      const row = await fetchCloudStateRow(cloud.signedInUser.id);
+      if (row && row.state) {
+        if (!cloud.lastCloudUpdatedAt || isCloudNewerThanLastKnown(row.updated_at)) {
           setLocalDashboardState(row.state);
-          markLastSynced(new Date().toISOString(), row.updated_at || new Date().toISOString());
-        } else {
-          const defaultState = emptyDashboardState();
-          setLocalDashboardState(defaultState);
-          await pushCloudState({ silentSuccess: true });
         }
-          if (cloud.signedInUser.email) {
-          showToast(`Signed in as ${cloud.signedInUser.email}`, 'success');
-        }
-      } finally {
-        setLoading(false);
+        markLastSynced(new Date().toISOString(), row.updated_at || new Date().toISOString());
+      } else {
+        const defaultState = emptyDashboardState();
+        setLocalDashboardState(defaultState);
+        await pushCloudState({ silentSuccess: true });
+      }
+      if (cloud.signedInUser.email) {
+        showToast(`Signed in as ${cloud.signedInUser.email}`, 'success');
       }
     }
   }
@@ -2891,6 +3076,18 @@
 
   window.addEventListener('resize', () => {
     document.querySelectorAll('.action-item').forEach((row) => updateRowTruncation(row));
+  });
+
+  window.addEventListener('focus', scheduleFocusRefresh);
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') scheduleFocusRefresh();
+  });
+
+  [generalPersonFilterSelect, schedulingPersonFilterSelect].forEach((selectEl) => {
+    if (!selectEl) return;
+    selectEl.addEventListener('change', (event) => {
+      setPersonFilter(event.target.value || 'All');
+    });
   });
 
   bindListEvents(lists.general);
