@@ -17,7 +17,7 @@
   const CLOUD_LAST_UPDATED_AT_KEY = 'lastCloudUpdatedAt';
   const LOCAL_DIRTY_SINCE_KEY = 'localDirtySince';
   const LOCAL_STATE_VERSION_KEY = 'dashboardStateVersion';
-  const LATEST_STATE_VERSION = 9;
+  const LATEST_STATE_VERSION = 10;
   const AUTOSYNC_DEBOUNCE_MS = 2000;
   const FOCUS_SYNC_DEBOUNCE_MS = 700;
   const PERSON_TAG_REGEX = /(^|[\s(>])(@[A-Za-z0-9_-]+)/g;
@@ -461,6 +461,7 @@
     const unique = new Map();
     [lists.general.actions, lists.scheduling.actions, bigTicket.items].forEach((items) => {
       items.forEach((item) => {
+        if (item?.archived) return;
         extractPersonTagsFromAction(item).forEach((tag) => {
           const key = tag.toLowerCase();
           if (!unique.has(key)) unique.set(key, tag);
@@ -492,6 +493,7 @@
     const unique = new Map();
     [lists.general.actions, lists.scheduling.actions, bigTicket.items].forEach((items) => {
       items.forEach((item) => {
+        if (item?.archived) return;
         extractHashTagsFromAction(item).forEach((tag) => {
           const key = tag.toLowerCase();
           if (!unique.has(key)) unique.set(key, tag);
@@ -703,6 +705,7 @@
       createdAt,
       completed,
       deleted,
+      archived: Boolean(item?.archived || item?.purgedFromUI),
       urgencyLevel,
       timingFlag: item?.timingFlag === 'T' || item?.timingFlag === 'D' ? item.timingFlag : (item?.timeDependent ? 'T' : null),
       updatedAt: Number(item?.updatedAt) || createdAt,
@@ -1022,6 +1025,14 @@
         }))
         : [];
       baseState.stateVersion = 9;
+    }
+
+    if (baseState.stateVersion < 10) {
+      const ensureArchivedDefault = (item) => ({ ...item, archived: Boolean(item?.archived || item?.purgedFromUI) });
+      baseState.generalActions = baseState.generalActions.map(ensureArchivedDefault);
+      baseState.schedulingActions = baseState.schedulingActions.map(ensureArchivedDefault);
+      baseState.personalActions = Array.isArray(baseState.personalActions) ? baseState.personalActions.map(ensureArchivedDefault) : [];
+      baseState.stateVersion = 10;
     }
 
     if (baseState.stateVersion < LATEST_STATE_VERSION) {
@@ -1375,13 +1386,14 @@
   }
 
   function getOrderedActions(list) {
-    const active = list.actions.filter((i) => !i.deleted && !i.completed);
+    const visibleItems = list.actions.filter((i) => !i.archived);
+    const active = visibleItems.filter((i) => !i.deleted && !i.completed);
     const superUrgent = active.filter((i) => i.urgencyLevel === 2).sort(sortWithinUrgencyTier);
     const urgent = active.filter((i) => i.urgencyLevel === 1).sort(sortWithinUrgencyTier);
     const normal = active.filter((i) => i.urgencyLevel === 0).sort(sortWithinUrgencyTier);
     const low = active.filter((i) => i.urgencyLevel === URGENCY_LOW).sort(sortWithinUrgencyTier);
-    const completed = list.actions.filter((i) => !i.deleted && i.completed).sort((a, b) => (b.completedAt || 0) - (a.completedAt || 0));
-    const deleted = list.actions.filter((i) => i.deleted).sort((a, b) => (b.deletedAt || 0) - (a.deletedAt || 0));
+    const completed = visibleItems.filter((i) => !i.deleted && i.completed).sort((a, b) => (b.completedAt || 0) - (a.completedAt || 0));
+    const deleted = visibleItems.filter((i) => i.deleted).sort((a, b) => (b.deletedAt || 0) - (a.deletedAt || 0));
     return [...superUrgent, ...urgent, ...normal, ...low, ...completed, ...deleted];
   }
 
@@ -1605,18 +1617,6 @@
       number.textContent = list.hideNumber ? '' : String(action.number);
       if (list.hideNumber) number.hidden = true;
 
-      const timingPill = document.createElement('span');
-      timingPill.className = 'timing-pill';
-      if (action.timingFlag === 'T') {
-        timingPill.textContent = 'T';
-        timingPill.classList.add('timing-pill-t');
-      } else if (action.timingFlag === 'D') {
-        timingPill.textContent = 'D';
-        timingPill.classList.add('timing-pill-d');
-      } else {
-        timingPill.hidden = true;
-      }
-
       const textWrap = document.createElement('div');
       textWrap.className = 'action-text-wrap';
       if (list.showDates) {
@@ -1698,7 +1698,7 @@
       });
 
       controls.append(urgentBtn, timeDependentBtn, deleteBtn);
-      li.append(checkbox, number, timingPill, textWrap, controls);
+      li.append(checkbox, number, textWrap, controls);
       li.addEventListener('click', (event) => {
         if (event.target.closest('.action-controls') || event.target.closest('.action-text-toggle') || event.target.closest('input[type="checkbox"]')) {
           return;
@@ -2299,6 +2299,7 @@
       updatedAt: now,
       completed: false,
       deleted: false,
+      archived: false,
       urgencyLevel: Math.max(0, Math.min(URGENCY_LOW, Number.isInteger(options.urgencyLevel) ? options.urgencyLevel : 0)),
       timingFlag: options.timingFlag === 'T' || options.timingFlag === 'D' ? options.timingFlag : null,
       completedAt: null,
@@ -2315,6 +2316,7 @@
 
     list.actions.unshift(item);
     saveList(list);
+    queueMovedActionHighlight(list, item);
     renderList(list);
   }
 
@@ -2779,10 +2781,15 @@
     renderCreationControls(list);
 
     list.clearBtn.addEventListener('click', () => {
-      list.actions = list.actions.filter((item) => {
+      const now = Date.now();
+      list.actions.forEach((item) => {
         const isCompleted = item.completed || Boolean(item.completedAt) || item.status === 'completed';
         const isDeleted = item.deleted || Boolean(item.deletedAt) || item.status === 'deleted';
-        return !(isCompleted || isDeleted);
+        if (!isCompleted && !isDeleted) return;
+        item.archived = true;
+        item.deleted = true;
+        if (!item.deletedAt) item.deletedAt = now;
+        item.updatedAt = now;
       });
       saveList(list);
       renderList(list);
