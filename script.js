@@ -1574,11 +1574,16 @@
       li.dataset.actionId = getActionIdentifier(list, action);
       if (action.completed) li.classList.add('completed');
       if (action.deleted) li.classList.add('deleted');
-      if (!action.completed && !action.deleted && action.urgencyLevel === 1) li.classList.add('urgent');
-      if (!action.completed && !action.deleted && action.urgencyLevel === 2) li.classList.add('super-urgent');
-      if (!action.completed && !action.deleted && action.urgencyLevel === URGENCY_LOW) li.classList.add('low-priority');
-      if (!action.completed && !action.deleted && action.timingFlag === 'T') li.classList.add('timing-time-dependent');
-      if (!action.completed && !action.deleted && action.timingFlag === 'D') li.classList.add('timing-delegated');
+      if (!action.completed && !action.deleted) {
+        const priorityClass = action.urgencyLevel === 2
+          ? 'pri-super'
+          : action.urgencyLevel === 1
+            ? 'pri-urgent'
+            : action.urgencyLevel === URGENCY_LOW
+              ? 'pri-low'
+              : 'pri-normal';
+        li.classList.add(priorityClass);
+      }
       if (isActionMoveHighlighted(list, action)) li.classList.add('move-highlight');
 
       const checkbox = document.createElement('input');
@@ -1599,6 +1604,18 @@
       number.className = 'action-number';
       number.textContent = list.hideNumber ? '' : String(action.number);
       if (list.hideNumber) number.hidden = true;
+
+      const timingPill = document.createElement('span');
+      timingPill.className = 'timing-pill';
+      if (action.timingFlag === 'T') {
+        timingPill.textContent = 'T';
+        timingPill.classList.add('timing-pill-t');
+      } else if (action.timingFlag === 'D') {
+        timingPill.textContent = 'D';
+        timingPill.classList.add('timing-pill-d');
+      } else {
+        timingPill.hidden = true;
+      }
 
       const textWrap = document.createElement('div');
       textWrap.className = 'action-text-wrap';
@@ -1681,7 +1698,7 @@
       });
 
       controls.append(urgentBtn, timeDependentBtn, deleteBtn);
-      li.append(checkbox, number, textWrap, controls);
+      li.append(checkbox, number, timingPill, textWrap, controls);
       li.addEventListener('click', (event) => {
         if (event.target.closest('.action-controls') || event.target.closest('.action-text-toggle') || event.target.closest('input[type="checkbox"]')) {
           return;
@@ -2033,13 +2050,25 @@
     bigTicket.items.forEach((item, index) => {
       const row = document.createElement('li');
       row.className = 'big-ticket-row';
-      if (item.urgencyLevel === 1) row.classList.add('urgent');
-      if (item.urgencyLevel === 2) row.classList.add('super-urgent');
-      if (item.urgencyLevel === URGENCY_LOW) row.classList.add('low-priority');
+      const priorityClass = item.urgencyLevel === 2
+        ? 'pri-super'
+        : item.urgencyLevel === 1
+          ? 'pri-urgent'
+          : item.urgencyLevel === URGENCY_LOW
+            ? 'pri-low'
+            : 'pri-normal';
+      row.classList.add(priorityClass);
 
       const number = document.createElement('span');
       number.className = 'action-number';
       number.textContent = `${index + 1}.`;
+      if (item.timingFlag === 'T' || item.timingFlag === 'D') {
+        const timingPill = document.createElement('span');
+        timingPill.className = 'timing-pill';
+        timingPill.textContent = item.timingFlag;
+        timingPill.classList.add(item.timingFlag === 'T' ? 'timing-pill-t' : 'timing-pill-d');
+        number.append(' ', timingPill);
+      }
 
       const summary = document.createElement('button');
       summary.type = 'button';
