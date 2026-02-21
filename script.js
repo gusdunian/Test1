@@ -16,8 +16,17 @@
   const CLOUD_LAST_SYNCED_AT_KEY = 'lastSyncedAt';
   const CLOUD_LAST_UPDATED_AT_KEY = 'lastCloudUpdatedAt';
   const LOCAL_STATE_VERSION_KEY = 'dashboardStateVersion';
-  const LATEST_STATE_VERSION = 2;
+  const LATEST_STATE_VERSION = 3;
   const AUTOSYNC_DEBOUNCE_MS = 2000;
+
+  const defaultTheme = {
+    bannerBg: '#1e3a8a',
+    pageBg: '#f3f6fb',
+    cardHeaderBg: '#0f172a',
+    cardHeaderFg: '#ffffff',
+    cardBg: '#fbfcfe',
+    cardFg: '#111827',
+  };
 
   const collapsedCardsDefault = {
     generalActions: false,
@@ -65,6 +74,21 @@
   const columnsSection = document.querySelector('.columns');
   const signedOutMessage = document.getElementById('signed-out-message');
 
+  const settingsBtn = document.getElementById('cloud-settings-btn');
+  const settingsModal = document.getElementById('settings-modal');
+  const settingsModalBackdrop = document.getElementById('settings-modal-backdrop');
+  const settingsModalClose = document.getElementById('settings-modal-close');
+  const settingsForm = document.getElementById('settings-form');
+  const settingsCancelBtn = document.getElementById('settings-cancel-btn');
+  const themeBannerBgInput = document.getElementById('theme-banner-bg');
+  const themePageBgInput = document.getElementById('theme-page-bg');
+  const themeCardHeaderBgInput = document.getElementById('theme-card-header-bg');
+  const themeCardHeaderFgInput = document.getElementById('theme-card-header-fg');
+  const themeCardBgInput = document.getElementById('theme-card-bg');
+  const themeCardFgInput = document.getElementById('theme-card-fg');
+  const meetingBigEditCancel = document.getElementById('meeting-big-edit-cancel');
+  const generalNoteBigEditCancel = document.getElementById('general-note-big-edit-cancel');
+
   const meeting = {
     items: [],
     expandedId: null,
@@ -91,6 +115,7 @@
     items: [],
     expandedId: null,
     editingId: null,
+    uiState: { collapsedMonths: {} },
     form: document.getElementById('general-notes-add-form'),
     dateInput: document.getElementById('general-note-date-input'),
     titleInput: document.getElementById('general-note-title-input'),
@@ -100,6 +125,8 @@
 
   const uiState = {
     collapsedCards: { ...collapsedCardsDefault },
+    collapsedGeneralNotesMonths: {},
+    theme: { ...defaultTheme },
   };
 
   const appState = {
@@ -109,7 +136,7 @@
     meetingNotes: [],
     bigTicketItems: [],
     generalNotes: [],
-    ui: { collapsedCards: { ...collapsedCardsDefault } },
+    ui: { collapsedCards: { ...collapsedCardsDefault }, collapsedGeneralNotesMonths: {}, theme: { ...defaultTheme } },
     meetingNotesUIState: { collapsedMonths: {}, collapsedWeeks: {} },
     nextActionNumber: DEFAULT_NEXT_NUMBER,
   };
@@ -121,6 +148,7 @@
     signOutBtn: document.getElementById('cloud-sign-out-btn'),
     exportBtn: document.getElementById('cloud-export-btn'),
     importLabel: document.getElementById('cloud-import-label'),
+    settingsBtn: document.getElementById('cloud-settings-btn'),
     importInput: document.getElementById('cloud-import-input'),
     signedInDisplay: document.getElementById('cloud-signed-in-display'),
     signedInEmailEl: document.getElementById('cloud-signed-in-email'),
@@ -158,6 +186,9 @@
   let nextActionNumber = DEFAULT_NEXT_NUMBER;
   let activeModalContext = null;
   let activeMeetingBigEditId = null;
+  let activeMeetingBigEditDraft = null;
+  let activeGeneralNoteBigEditId = null;
+  let activeGeneralNoteBigEditDraft = null;
   let isAuthenticated = false;
   let suppressAutosync = false;
   let autosyncTimer = null;
@@ -473,12 +504,41 @@
     generalNotes.items = Array.isArray(parsed) ? parsed.map(normalizeGeneralNote).filter(Boolean) : [];
   }
 
+  function normalizeTheme(themeLike) {
+    const source = themeLike && typeof themeLike === 'object' ? themeLike : {};
+    return {
+      bannerBg: typeof source.bannerBg === 'string' ? source.bannerBg : defaultTheme.bannerBg,
+      pageBg: typeof source.pageBg === 'string' ? source.pageBg : defaultTheme.pageBg,
+      cardHeaderBg: typeof source.cardHeaderBg === 'string' ? source.cardHeaderBg : defaultTheme.cardHeaderBg,
+      cardHeaderFg: typeof source.cardHeaderFg === 'string' ? source.cardHeaderFg : defaultTheme.cardHeaderFg,
+      cardBg: typeof source.cardBg === 'string' ? source.cardBg : defaultTheme.cardBg,
+      cardFg: typeof source.cardFg === 'string' ? source.cardFg : defaultTheme.cardFg,
+    };
+  }
+
+  function applyTheme(themeLike) {
+    const theme = normalizeTheme(themeLike);
+    const root = document.documentElement;
+    root.style.setProperty('--banner-bg', theme.bannerBg);
+    root.style.setProperty('--page-bg', theme.pageBg);
+    root.style.setProperty('--card-header-bg', theme.cardHeaderBg);
+    root.style.setProperty('--card-header-fg', theme.cardHeaderFg);
+    root.style.setProperty('--card-body-bg', theme.cardBg);
+    root.style.setProperty('--card-body-fg', theme.cardFg);
+  }
+
   function loadUiState() {
     const parsed = parseStoredJson(localStorage.getItem('dashboardUiState'), {});
     uiState.collapsedCards = {
       ...collapsedCardsDefault,
       ...(parsed?.collapsedCards && typeof parsed.collapsedCards === 'object' ? parsed.collapsedCards : {}),
     };
+    uiState.collapsedGeneralNotesMonths = parsed?.collapsedGeneralNotesMonths && typeof parsed.collapsedGeneralNotesMonths === 'object'
+      ? parsed.collapsedGeneralNotesMonths
+      : {};
+    uiState.theme = normalizeTheme(parsed?.theme);
+    generalNotes.uiState.collapsedMonths = uiState.collapsedGeneralNotesMonths;
+    applyTheme(uiState.theme);
   }
 
   function migrateLegacyGeneralData() {
@@ -544,6 +604,15 @@
       baseState.stateVersion = 2;
     }
 
+    if (baseState.stateVersion < 3) {
+      baseState.ui = {
+        ...baseState.ui,
+        collapsedGeneralNotesMonths: baseState.ui.collapsedGeneralNotesMonths && typeof baseState.ui.collapsedGeneralNotesMonths === 'object' ? baseState.ui.collapsedGeneralNotesMonths : {},
+        theme: normalizeTheme(baseState.ui.theme),
+      };
+      baseState.stateVersion = 3;
+    }
+
     if (baseState.stateVersion < LATEST_STATE_VERSION) {
       baseState.stateVersion = LATEST_STATE_VERSION;
     }
@@ -553,6 +622,8 @@
         ...collapsedCardsDefault,
         ...(baseState.ui.collapsedCards && typeof baseState.ui.collapsedCards === 'object' ? baseState.ui.collapsedCards : {}),
       },
+      collapsedGeneralNotesMonths: baseState.ui.collapsedGeneralNotesMonths && typeof baseState.ui.collapsedGeneralNotesMonths === 'object' ? baseState.ui.collapsedGeneralNotesMonths : {},
+      theme: normalizeTheme(baseState.ui.theme),
     };
 
     const highest = Math.max(DEFAULT_NEXT_NUMBER - 1, ...baseState.generalActions.map((i) => i.number), ...baseState.schedulingActions.map((i) => i.number));
@@ -593,7 +664,7 @@
     appState.meetingNotes = meeting.items;
     appState.bigTicketItems = bigTicket.items;
     appState.generalNotes = generalNotes.items;
-    appState.ui = { collapsedCards: uiState.collapsedCards };
+    appState.ui = { collapsedCards: uiState.collapsedCards, collapsedGeneralNotesMonths: uiState.collapsedGeneralNotesMonths, theme: uiState.theme };
     appState.meetingNotesUIState = meeting.uiState;
     appState.nextActionNumber = nextActionNumber;
   }
@@ -700,6 +771,7 @@
     cloud.signInBtn.hidden = signedIn;
     cloud.exportBtn.hidden = !signedIn;
     cloud.importLabel.hidden = !signedIn;
+    cloud.settingsBtn.hidden = !signedIn;
     cloud.signedInDisplay.hidden = !signedIn;
     cloud.emailInput.hidden = signedIn;
     cloud.passwordInput.hidden = signedIn;
@@ -708,6 +780,7 @@
     cloud.importLabel.classList.toggle('is-disabled', cloud.busy || !signedIn);
     cloud.signInBtn.disabled = cloud.busy || cloud.syncInFlight || signedIn;
     cloud.signOutBtn.disabled = cloud.busy || !signedIn;
+    cloud.settingsBtn.disabled = cloud.busy || !signedIn || cloud.syncInFlight;
     cloud.emailInput.disabled = cloud.busy || signedIn || cloud.syncInFlight;
     cloud.passwordInput.disabled = cloud.busy || cloud.syncInFlight || signedIn;
 
@@ -780,7 +853,7 @@
       meetingNotes: [],
       bigTicketItems: [],
       generalNotes: [],
-      ui: { collapsedCards: { ...collapsedCardsDefault } },
+      ui: { collapsedCards: { ...collapsedCardsDefault }, collapsedGeneralNotesMonths: {}, theme: { ...defaultTheme } },
       meetingNotesUIState: { collapsedMonths: {}, collapsedWeeks: {} },
       nextActionNumber: DEFAULT_NEXT_NUMBER,
     });
@@ -1174,6 +1247,7 @@
       monthSection.appendChild(monthHeaderRow);
 
       const monthBody = document.createElement('div');
+      monthBody.className = 'meeting-month-body';
       monthBody.hidden = monthCollapsed;
 
       month.weeks.forEach((week) => {
@@ -1300,7 +1374,7 @@
       const d = new Date(`${note.date}T00:00:00`);
       const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
       if (!map.has(key)) {
-        map.set(key, { label: d.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' }), items: [] });
+        map.set(key, { key, label: d.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' }), items: [] });
       }
       map.get(key).items.push(note);
     });
@@ -1319,13 +1393,28 @@
 
     getGeneralNoteGroups().forEach((group) => {
       const section = document.createElement('section');
+      const headerRow = document.createElement('div');
+      headerRow.className = 'general-note-month-row';
+      const monthToggle = document.createElement('button');
+      monthToggle.type = 'button';
+      monthToggle.className = 'collapse-toggle';
+      const monthCollapsed = Boolean(uiState.collapsedGeneralNotesMonths[group.key]);
+      monthToggle.textContent = monthCollapsed ? '+' : '–';
+      monthToggle.addEventListener('click', () => {
+        uiState.collapsedGeneralNotesMonths[group.key] = !monthCollapsed;
+        generalNotes.uiState.collapsedMonths = uiState.collapsedGeneralNotesMonths;
+        saveUiState();
+        renderGeneralNotes();
+      });
       const header = document.createElement('h4');
       header.className = 'general-note-month-header';
       header.textContent = group.label;
-      section.appendChild(header);
+      headerRow.append(monthToggle, header);
+      section.appendChild(headerRow);
 
       const list = document.createElement('ul');
-      list.className = 'meeting-items';
+      list.className = 'meeting-items general-note-items';
+      list.hidden = monthCollapsed;
       group.items.forEach((note) => {
         const li = document.createElement('li');
         li.className = 'general-note-item';
@@ -1442,6 +1531,7 @@
     });
     saveMeetings();
     renderMeetings();
+    activeMeetingBigEditDraft = null;
     return true;
   }
 
@@ -1495,6 +1585,7 @@
     generalNotes.items.push({ id: `gn-${now}-${Math.random().toString(16).slice(2)}`, date: dateRaw, title, html, text, createdAt: now, updatedAt: now });
     saveGeneralNotes();
     renderGeneralNotes();
+    activeGeneralNoteBigEditDraft = null;
     return true;
   }
 
@@ -1505,7 +1596,8 @@
   function openGeneralNoteBigEdit(id) {
     const item = getGeneralNoteById(id);
     if (!item) return;
-    generalNotes.editingId = id;
+    activeGeneralNoteBigEditId = id;
+    activeGeneralNoteBigEditDraft = { title: item.title, date: item.date, html: item.html };
     generalNoteBigEditTitleInput.value = item.title;
     generalNoteBigEditDateInput.value = item.date;
     generalNoteBigEditEditor.innerHTML = item.html;
@@ -1513,11 +1605,18 @@
   }
 
   function closeGeneralNoteBigEdit() {
+    if (activeGeneralNoteBigEditDraft) {
+      generalNoteBigEditTitleInput.value = activeGeneralNoteBigEditDraft.title;
+      generalNoteBigEditDateInput.value = activeGeneralNoteBigEditDraft.date;
+      generalNoteBigEditEditor.innerHTML = activeGeneralNoteBigEditDraft.html;
+    }
     generalNoteBigEditModal.hidden = true;
+    activeGeneralNoteBigEditId = null;
+    activeGeneralNoteBigEditDraft = null;
   }
 
   function saveGeneralNoteBigEdit() {
-    const item = getGeneralNoteById(generalNotes.editingId);
+    const item = getGeneralNoteById(activeGeneralNoteBigEditId);
     if (!item) return false;
     const title = generalNoteBigEditTitleInput.value.trim();
     const date = generalNoteBigEditDateInput.value;
@@ -1532,6 +1631,45 @@
     saveGeneralNotes();
     renderGeneralNotes();
     return true;
+  }
+
+
+  function fillSettingsForm(themeLike) {
+    const theme = normalizeTheme(themeLike || uiState.theme);
+    themeBannerBgInput.value = theme.bannerBg;
+    themePageBgInput.value = theme.pageBg;
+    themeCardHeaderBgInput.value = theme.cardHeaderBg;
+    themeCardHeaderFgInput.value = theme.cardHeaderFg;
+    themeCardBgInput.value = theme.cardBg;
+    themeCardFgInput.value = theme.cardFg;
+  }
+
+  function getThemeFromSettingsForm() {
+    return normalizeTheme({
+      bannerBg: themeBannerBgInput.value,
+      pageBg: themePageBgInput.value,
+      cardHeaderBg: themeCardHeaderBgInput.value,
+      cardHeaderFg: themeCardHeaderFgInput.value,
+      cardBg: themeCardBgInput.value,
+      cardFg: themeCardFgInput.value,
+    });
+  }
+
+  function openSettingsModal() {
+    fillSettingsForm(uiState.theme);
+    settingsModal.hidden = false;
+    themeBannerBgInput.focus();
+  }
+
+  function closeSettingsModal() {
+    settingsModal.hidden = true;
+  }
+
+  function saveSettingsModal() {
+    uiState.theme = getThemeFromSettingsForm();
+    applyTheme(uiState.theme);
+    saveUiState();
+    renderAll();
   }
 
   function modalStatusText(action) {
@@ -1662,19 +1800,33 @@
     if (!item) return;
     const date = new Date(item.datetime);
     activeMeetingBigEditId = item.id;
+    activeMeetingBigEditDraft = {
+      title: item.title,
+      date: dateToDateValue(date),
+      hour: String(date.getHours()).padStart(2, '0'),
+      minute: ALLOWED_MINUTES.includes(String(date.getMinutes()).padStart(2, '0')) ? String(date.getMinutes()).padStart(2, '0') : '00',
+      notesHtml: item.notesHtml,
+    };
     meetingBigEditTitleInput.value = item.title;
     meetingBigEditDateInput.value = dateToDateValue(date);
-    meetingBigEditHourInput.value = String(date.getHours()).padStart(2, '0');
-    const minute = String(date.getMinutes()).padStart(2, '0');
-    meetingBigEditMinuteInput.value = ALLOWED_MINUTES.includes(minute) ? minute : '00';
-    meetingBigEditNotesEditor.innerHTML = item.notesHtml;
+    meetingBigEditHourInput.value = activeMeetingBigEditDraft.hour;
+    meetingBigEditMinuteInput.value = activeMeetingBigEditDraft.minute;
+    meetingBigEditNotesEditor.innerHTML = activeMeetingBigEditDraft.notesHtml;
     meetingBigEditModal.hidden = false;
     meetingBigEditTitleInput.focus();
   }
 
   function closeMeetingBigEdit() {
+    if (activeMeetingBigEditDraft) {
+      meetingBigEditTitleInput.value = activeMeetingBigEditDraft.title;
+      meetingBigEditDateInput.value = activeMeetingBigEditDraft.date;
+      meetingBigEditHourInput.value = activeMeetingBigEditDraft.hour;
+      meetingBigEditMinuteInput.value = activeMeetingBigEditDraft.minute;
+      meetingBigEditNotesEditor.innerHTML = activeMeetingBigEditDraft.notesHtml;
+    }
     meetingBigEditModal.hidden = true;
     activeMeetingBigEditId = null;
+    activeMeetingBigEditDraft = null;
   }
 
   function saveMeetingBigEdit() {
@@ -2075,6 +2227,7 @@
   });
 
   meetingBigEditClose.addEventListener('click', closeMeetingBigEdit);
+  meetingBigEditCancel.addEventListener('click', closeMeetingBigEdit);
   meetingBigEditBackdrop.addEventListener('click', closeMeetingBigEdit);
 
   bigTicketModalSave.addEventListener('click', () => {
@@ -2088,12 +2241,27 @@
     if (saveGeneralNoteBigEdit()) closeGeneralNoteBigEdit();
   });
   generalNoteBigEditClose.addEventListener('click', closeGeneralNoteBigEdit);
+  generalNoteBigEditCancel.addEventListener('click', closeGeneralNoteBigEdit);
   generalNoteBigEditBackdrop.addEventListener('click', closeGeneralNoteBigEdit);
 
   modalCloseBtn.addEventListener('click', () => closeModal());
+
+  settingsBtn.addEventListener('click', openSettingsModal);
+  settingsForm.addEventListener('submit', (event) => {
+    event.preventDefault();
+    saveSettingsModal();
+    closeSettingsModal();
+  });
+  settingsCancelBtn.addEventListener('click', closeSettingsModal);
+  settingsModalClose.addEventListener('click', closeSettingsModal);
+  settingsModalBackdrop.addEventListener('click', closeSettingsModal);
   modalBackdrop.addEventListener('click', () => closeModal());
   window.addEventListener('keydown', (event) => {
     if (event.key !== 'Escape') return;
+    if (!settingsModal.hidden) {
+      closeSettingsModal();
+      return;
+    }
     if (!generalNoteBigEditModal.hidden) {
       closeGeneralNoteBigEdit();
       return;
@@ -2118,6 +2286,7 @@
   bindMeetingEvents();
   bindBigTicketEvents();
   bindGeneralNotesEvents();
+  applyTheme(defaultTheme);
   bindCardToggleEvents();
   bindCloudEvents();
   loadData();

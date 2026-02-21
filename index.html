@@ -22,6 +22,7 @@
           <button id="cloud-sign-in-btn" type="button" class="cloud-btn">Sign in</button>
           <button id="cloud-sign-out-btn" type="button" class="cloud-btn" hidden>Sign out</button>
           <button id="cloud-export-btn" type="button" class="cloud-btn" disabled hidden>Export</button>
+          <button id="cloud-settings-btn" type="button" class="cloud-btn" hidden>Settings</button>
           <label id="cloud-import-label" class="cloud-btn cloud-import-label" hidden>
             Import
             <input id="cloud-import-input" type="file" accept="application/json,.json" hidden />
@@ -273,7 +274,7 @@
       <div id="meeting-big-edit-backdrop" class="modal-backdrop"></div>
       <div class="modal-dialog big-edit-dialog" role="dialog" aria-modal="true" aria-labelledby="meeting-big-edit-title">
         <button id="meeting-big-edit-close" type="button" class="modal-close" aria-label="Close modal">×</button>
-        <h3 id="meeting-big-edit-title">Big edit meeting</h3>
+        <h3 id="meeting-big-edit-title">Edit Meeting</h3>
         <form id="meeting-big-edit-form" class="meeting-big-edit-form" autocomplete="off">
           <label class="visually-hidden" for="meeting-big-edit-title-input">Meeting title</label>
           <input id="meeting-big-edit-title-input" name="title" type="text" maxlength="200" required />
@@ -294,6 +295,9 @@
             </select>
           </div>
 
+          <label class="visually-hidden" for="meeting-big-edit-notes-editor">Meeting notes</label>
+          <div id="meeting-big-edit-notes-editor" class="modal-editor" contenteditable="true" role="textbox" aria-multiline="true"></div>
+
           <div class="rtf-toolbar" data-editor-target="meeting-big-edit-notes-editor" role="toolbar" aria-label="Big edit meeting notes formatting">
             <button type="button" data-command="bold" aria-label="Bold">B</button>
             <button type="button" data-command="italic" aria-label="Italic">I</button>
@@ -302,10 +306,8 @@
             <button type="button" data-command="insertOrderedList" aria-label="Numbered list">1.</button>
           </div>
 
-          <label class="visually-hidden" for="meeting-big-edit-notes-editor">Meeting notes</label>
-          <div id="meeting-big-edit-notes-editor" class="modal-editor" contenteditable="true" role="textbox" aria-multiline="true"></div>
-
           <div class="modal-footer">
+            <button id="meeting-big-edit-cancel" type="button" class="subtle-button">Cancel</button>
             <button type="submit" class="subtle-button">Save</button>
           </div>
         </form>
@@ -339,10 +341,11 @@
       <div id="general-note-big-edit-backdrop" class="modal-backdrop"></div>
       <div class="modal-dialog big-edit-dialog" role="dialog" aria-modal="true" aria-labelledby="general-note-big-edit-title">
         <button id="general-note-big-edit-close" type="button" class="modal-close" aria-label="Close modal">×</button>
-        <h3 id="general-note-big-edit-title">Big edit note</h3>
+        <h3 id="general-note-big-edit-title">Edit Note</h3>
         <form id="general-note-big-edit-form" class="meeting-big-edit-form" autocomplete="off">
           <input id="general-note-big-edit-title-input" name="title" type="text" maxlength="200" required />
           <input id="general-note-big-edit-date-input" name="date" type="date" required />
+          <div id="general-note-big-edit-editor" class="modal-editor" contenteditable="true" role="textbox" aria-multiline="true"></div>
           <div class="rtf-toolbar" data-editor-target="general-note-big-edit-editor" role="toolbar" aria-label="General note big edit formatting">
             <button type="button" data-command="bold" aria-label="Bold">B</button>
             <button type="button" data-command="italic" aria-label="Italic">I</button>
@@ -350,8 +353,29 @@
             <button type="button" data-command="insertUnorderedList" aria-label="Bulleted list">•</button>
             <button type="button" data-command="insertOrderedList" aria-label="Numbered list">1.</button>
           </div>
-          <div id="general-note-big-edit-editor" class="modal-editor" contenteditable="true" role="textbox" aria-multiline="true"></div>
           <div class="modal-footer">
+            <button id="general-note-big-edit-cancel" type="button" class="subtle-button">Cancel</button>
+            <button type="submit" class="subtle-button">Save</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+
+    <div id="settings-modal" class="modal" hidden>
+      <div id="settings-modal-backdrop" class="modal-backdrop"></div>
+      <div class="modal-dialog settings-dialog" role="dialog" aria-modal="true" aria-labelledby="settings-modal-title">
+        <button id="settings-modal-close" type="button" class="modal-close" aria-label="Close modal">×</button>
+        <h3 id="settings-modal-title">Settings</h3>
+        <form id="settings-form" class="settings-form" autocomplete="off">
+          <label class="settings-row">Banner background colour <input id="theme-banner-bg" type="color" /></label>
+          <label class="settings-row">Page background colour <input id="theme-page-bg" type="color" /></label>
+          <label class="settings-row">Card header background colour <input id="theme-card-header-bg" type="color" /></label>
+          <label class="settings-row">Card header text colour <input id="theme-card-header-fg" type="color" /></label>
+          <label class="settings-row">Card body background colour <input id="theme-card-bg" type="color" /></label>
+          <label class="settings-row">Card body text colour <input id="theme-card-fg" type="color" /></label>
+          <div class="modal-footer">
+            <button id="settings-cancel-btn" type="button" class="subtle-button">Cancel</button>
             <button type="submit" class="subtle-button">Save</button>
           </div>
         </form>
