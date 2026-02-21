@@ -39,12 +39,6 @@ body { margin: 0; font-family: Inter, -apple-system, BlinkMacSystemFont, 'Segoe 
   width: min(100%, 44rem);
 }
 
-.cloud-title {
-  margin: 0;
-  font-size: 1rem;
-  font-weight: 700;
-}
-
 .cloud-controls {
   width: 100%;
   display: flex;
@@ -55,12 +49,41 @@ body { margin: 0; font-family: Inter, -apple-system, BlinkMacSystemFont, 'Segoe 
 }
 
 .cloud-panel input {
-  width: 12.5rem;
+  width: 17rem;
   border: 1px solid #cbd5e1;
   border-radius: 8px;
   padding: 0.45rem 0.6rem;
   font: inherit;
   font-size: 0.9rem;
+}
+
+.cloud-signed-in-display {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  min-height: 2.15rem;
+  padding: 0.4rem 0.65rem;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  background: #f8fafc;
+  color: #111827;
+  font-size: 0.88rem;
+}
+
+.cloud-signed-in-dot {
+  width: 0.55rem;
+  height: 0.55rem;
+  border-radius: 999px;
+  background: #16a34a;
+  flex: 0 0 auto;
+}
+
+.cloud-signed-in-text {
+  font-weight: 700;
+}
+
+.cloud-signed-in-email {
+  font-weight: 500;
 }
 
 .cloud-btn {
@@ -71,6 +94,11 @@ body { margin: 0; font-family: Inter, -apple-system, BlinkMacSystemFont, 'Segoe 
   font-size: 0.88rem;
   font-weight: 600;
   padding: 0.45rem 0.7rem;
+  min-height: 2.15rem;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .cloud-btn:hover,
@@ -88,6 +116,7 @@ body { margin: 0; font-family: Inter, -apple-system, BlinkMacSystemFont, 'Segoe 
 .cloud-import-label {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   cursor: pointer;
 }
 
@@ -202,6 +231,18 @@ body { margin: 0; font-family: Inter, -apple-system, BlinkMacSystemFont, 'Segoe 
   to { opacity: 1; transform: translateY(0); }
 }
 
+
+.signed-out-message {
+  margin: 0.5rem 0 0;
+  text-align: center;
+  color: #334155;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.container.is-signed-out .columns {
+  display: none;
+}
 .container { width: 100%; margin: 1rem 0; padding: 0 1.25rem 2rem; }
 .columns { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1rem; align-items: start; width: 100%; }
 .card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 0; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06); overflow: hidden; }
@@ -214,7 +255,6 @@ body { margin: 0; font-family: Inter, -apple-system, BlinkMacSystemFont, 'Segoe 
 .compact-editor-wrap { flex: 1; min-width: 0; display: grid; gap: 0.25rem; }
 .compact-rich-editor { font-family: inherit; width: 100%; border: 1px solid var(--border); border-radius: 8px; padding: 0.45rem 0.65rem; font-size: 0.92rem; line-height: 1.25; min-height: 2.8rem; max-height: 5.5rem; overflow: auto; }
 .compact-rich-editor:empty::before { content: attr(data-placeholder); color: #94a3b8; }
-.signed-out-placeholder { border: 1px dashed #cbd5e1; border-radius: 8px; padding: 0.75rem; background: #f8fafc; color: #475569; margin-top: 0.65rem; }
 button { font-family: inherit; background: var(--primary); color: #fff; border: 0; border-radius: 8px; padding: 0.5rem 0.75rem; font-size: 0.95rem; line-height: 1; cursor: pointer; }
 button:hover, button:focus-visible { background: var(--primary-hover); }
 button:focus-visible, textarea:focus-visible, input:focus-visible, [contenteditable='true']:focus-visible { outline: 3px solid #93c5fd; outline-offset: 2px; }

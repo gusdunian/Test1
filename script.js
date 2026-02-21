@@ -41,6 +41,9 @@
   const meetingBigEditHourInput = document.getElementById('meeting-big-edit-hour-input');
   const meetingBigEditMinuteInput = document.getElementById('meeting-big-edit-minute-input');
   const meetingBigEditNotesEditor = document.getElementById('meeting-big-edit-notes-editor');
+  const mainContainer = document.getElementById('main-content');
+  const columnsSection = document.querySelector('.columns');
+  const signedOutMessage = document.getElementById('signed-out-message');
 
   const meeting = {
     items: [],
@@ -64,6 +67,8 @@
     exportBtn: document.getElementById('cloud-export-btn'),
     importLabel: document.getElementById('cloud-import-label'),
     importInput: document.getElementById('cloud-import-input'),
+    signedInDisplay: document.getElementById('cloud-signed-in-display'),
+    signedInEmailEl: document.getElementById('cloud-signed-in-email'),
     statusEl: document.getElementById('cloud-status'),
     signedInAsEl: document.getElementById('cloud-signed-in-as'),
     lastSyncedEl: document.getElementById('cloud-last-synced'),
@@ -461,6 +466,7 @@
   function updateCloudMeta() {
     const email = cloud.signedInUser?.email || '—';
     cloud.signedInAsEl.textContent = `Signed in as: ${email}`;
+    cloud.signedInEmailEl.textContent = email;
     const label = formatCloudTimestamp(cloud.lastSyncedAt) || 'Never';
     cloud.lastSyncedEl.textContent = `Last synced: ${label}`;
   }
@@ -526,12 +532,14 @@
     cloud.signInBtn.hidden = signedIn;
     cloud.exportBtn.hidden = !signedIn;
     cloud.importLabel.hidden = !signedIn;
+    cloud.signedInDisplay.hidden = !signedIn;
+    cloud.passwordInput.hidden = signedIn;
     cloud.exportBtn.disabled = cloud.busy || !signedIn;
     cloud.importLabel.classList.toggle('is-disabled', cloud.busy || !signedIn);
     cloud.signInBtn.disabled = cloud.busy || cloud.syncInFlight;
     cloud.signOutBtn.disabled = cloud.busy;
     cloud.emailInput.disabled = cloud.busy || signedIn || cloud.syncInFlight;
-    cloud.passwordInput.disabled = cloud.busy || signedIn || cloud.syncInFlight;
+    cloud.passwordInput.disabled = cloud.busy || cloud.syncInFlight;
 
     if (cloud.busy || cloud.loadingContext || cloud.syncInFlight) {
       cloud.statusEl.classList.toggle('cloud-status-loading', true);
@@ -546,17 +554,8 @@
   function renderSignedOutState() {
     [lists.general, lists.scheduling].forEach((list) => {
       list.listEl.innerHTML = '';
-      const empty = document.createElement('li');
-      empty.className = 'coming-soon signed-out-placeholder';
-      empty.textContent = 'Sign in to view your dashboard.';
-      list.listEl.appendChild(empty);
     });
-
     meeting.listEl.innerHTML = '';
-    const emptyMeeting = document.createElement('p');
-    emptyMeeting.className = 'meeting-empty signed-out-placeholder';
-    emptyMeeting.textContent = 'Sign in to view your dashboard.';
-    meeting.listEl.appendChild(emptyMeeting);
   }
 
   function applyAuthUiState(options = {}) {
@@ -570,6 +569,14 @@
     meeting.form.hidden = !signedIn;
 
     updateCloudUi();
+
+    mainContainer.classList.toggle('is-signed-out', !signedIn);
+    if (columnsSection) {
+      columnsSection.hidden = !signedIn;
+    }
+    if (signedOutMessage) {
+      signedOutMessage.hidden = signedIn;
+    }
 
     if (!signedIn) {
       renderSignedOutState();
@@ -1287,7 +1294,6 @@
       setStatus(`Sign out failed: ${error.message}`, 'error');
       return;
     }
-    setStatus('Signed out', 'info');
   }
 
   async function fetchCloudStateRow(userId) {
