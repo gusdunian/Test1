@@ -70,6 +70,7 @@
     signedInDisplay: document.getElementById('cloud-signed-in-display'),
     signedInEmailEl: document.getElementById('cloud-signed-in-email'),
     statusEl: document.getElementById('cloud-status'),
+    metaEl: document.getElementById('cloud-meta'),
     signedInAsEl: document.getElementById('cloud-signed-in-as'),
     lastSyncedEl: document.getElementById('cloud-last-synced'),
     toastContainer: document.getElementById('toast-container'),
@@ -534,12 +535,16 @@
     cloud.importLabel.hidden = !signedIn;
     cloud.signedInDisplay.hidden = !signedIn;
     cloud.passwordInput.hidden = signedIn;
+    cloud.statusEl.hidden = !cloud.busy && !cloud.syncInFlight;
+    cloud.metaEl.hidden = !signedIn;
+    cloud.signedInAsEl.hidden = true;
+    cloud.lastSyncedEl.hidden = !signedIn;
     cloud.exportBtn.disabled = cloud.busy || !signedIn;
     cloud.importLabel.classList.toggle('is-disabled', cloud.busy || !signedIn);
-    cloud.signInBtn.disabled = cloud.busy || cloud.syncInFlight;
-    cloud.signOutBtn.disabled = cloud.busy;
+    cloud.signInBtn.disabled = cloud.busy || cloud.syncInFlight || signedIn;
+    cloud.signOutBtn.disabled = cloud.busy || !signedIn;
     cloud.emailInput.disabled = cloud.busy || signedIn || cloud.syncInFlight;
-    cloud.passwordInput.disabled = cloud.busy || cloud.syncInFlight;
+    cloud.passwordInput.disabled = cloud.busy || cloud.syncInFlight || signedIn;
 
     if (cloud.busy || cloud.loadingContext || cloud.syncInFlight) {
       cloud.statusEl.classList.toggle('cloud-status-loading', true);
@@ -1282,18 +1287,13 @@
   }
 
   async function signOutCloud() {
-    cloud.signedInUser = null;
-    autosyncPending = false;
-    if (autosyncTimer) {
-      window.clearTimeout(autosyncTimer);
-      autosyncTimer = null;
-    }
-    applyAuthUiState();
+    if (cloud.busy || !cloud.signedInUser) return;
+    setLoading(true, 'authSignOut');
     const { error } = await sb.auth.signOut();
     if (error) {
       setStatus(`Sign out failed: ${error.message}`, 'error');
-      return;
     }
+    setLoading(false);
   }
 
   async function fetchCloudStateRow(userId) {
@@ -1486,6 +1486,12 @@
     applyAuthUiState({ deferRender: event === 'SIGNED_IN' || event === 'INITIAL_SESSION' });
 
     if (!cloud.signedInUser) {
+      autosyncPending = false;
+      if (autosyncTimer) {
+        window.clearTimeout(autosyncTimer);
+        autosyncTimer = null;
+      }
+      setLoading(false);
       if (event === 'SIGNED_OUT') {
         setStatus('Signed out', 'info');
       }

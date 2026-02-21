@@ -3,13 +3,13 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Angus’s Working Dashboard</title>
+    <title>Angus’ Working Dashboard</title>
     <link rel="stylesheet" href="style.css" />
   </head>
   <body>
     <a class="skip-link" href="#main-content">Skip to main content</a>
     <header class="banner" role="banner">
-      <h1>Angus’s Working Dashboard</h1>
+      <h1>Angus’ Working Dashboard</h1>
       <section class="cloud-panel" aria-label="Cloud sync controls">
         <div class="cloud-controls">
           <input id="cloud-email-input" type="email" placeholder="you@example.com" autocomplete="email" />
@@ -57,6 +57,7 @@
             <form id="general-add-action-form" class="add-action-form" autocomplete="off">
               <label class="visually-hidden" for="general-action-input">New general action description</label>
               <div class="compact-editor-wrap">
+                <div id="general-action-input" class="compact-rich-editor" contenteditable="true" role="textbox" aria-multiline="true" data-placeholder="Enter a new action"></div>
                 <div class="rtf-toolbar" data-editor-target="general-action-input" role="toolbar" aria-label="General action formatting">
                   <button type="button" data-command="bold" aria-label="Bold">B</button>
                   <button type="button" data-command="italic" aria-label="Italic">I</button>
@@ -64,7 +65,6 @@
                   <button type="button" data-command="insertUnorderedList" aria-label="Bulleted list">•</button>
                   <button type="button" data-command="insertOrderedList" aria-label="Numbered list">1.</button>
                 </div>
-                <div id="general-action-input" class="compact-rich-editor" contenteditable="true" role="textbox" aria-multiline="true" data-placeholder="Enter a new action"></div>
               </div>
               <button type="submit" aria-label="Add action">+</button>
             </form>
@@ -94,6 +94,7 @@
             <form id="scheduling-add-action-form" class="add-action-form" autocomplete="off">
               <label class="visually-hidden" for="scheduling-action-input">New scheduling action description</label>
               <div class="compact-editor-wrap">
+                <div id="scheduling-action-input" class="compact-rich-editor" contenteditable="true" role="textbox" aria-multiline="true" data-placeholder="Enter a scheduling action"></div>
                 <div class="rtf-toolbar" data-editor-target="scheduling-action-input" role="toolbar" aria-label="Scheduling action formatting">
                   <button type="button" data-command="bold" aria-label="Bold">B</button>
                   <button type="button" data-command="italic" aria-label="Italic">I</button>
@@ -101,7 +102,6 @@
                   <button type="button" data-command="insertUnorderedList" aria-label="Bulleted list">•</button>
                   <button type="button" data-command="insertOrderedList" aria-label="Numbered list">1.</button>
                 </div>
-                <div id="scheduling-action-input" class="compact-rich-editor" contenteditable="true" role="textbox" aria-multiline="true" data-placeholder="Enter a scheduling action"></div>
               </div>
               <button type="submit" aria-label="Add scheduling action">+</button>
             </form>
