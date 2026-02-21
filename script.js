@@ -11,7 +11,6 @@
   const ALLOWED_MINUTES = ['00', '15', '30', '45'];
   const SUPABASE_URL = 'https://ngmcjvsqontdwgxyedwx.supabase.co';
   const SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_QNIuyXbtKQ_1-1NnU1J4pA_53Jckpes';
-  const SUPABASE_REDIRECT_URL = 'https://gusdunian.github.io/Test1/';
   const CLOUD_LAST_PUSH_KEY = 'lastPushAt';
   const CLOUD_LAST_PULL_KEY = 'lastPullAt';
 
@@ -54,6 +53,7 @@
 
   const cloud = {
     emailInput: document.getElementById('cloud-email-input'),
+    passwordInput: document.getElementById('cloud-password-input'),
     signInBtn: document.getElementById('cloud-sign-in-btn'),
     signOutBtn: document.getElementById('cloud-sign-out-btn'),
     pushBtn: document.getElementById('cloud-push-btn'),
@@ -89,6 +89,7 @@
   let nextActionNumber = DEFAULT_NEXT_NUMBER;
   let activeModalContext = null;
   let activeMeetingBigEditId = null;
+  let isAuthenticated = false;
 
   function escapeHtml(text) {
     return String(text || '')
@@ -427,6 +428,7 @@
       signIn: 'Signing in…',
       push: 'Pushing to cloud…',
       pull: 'Pulling from cloud…',
+      authLoad: 'Loading from cloud…',
     }[context] || 'Loading…';
     setStatus(label, 'loading');
   }
@@ -435,11 +437,14 @@
     const signedIn = Boolean(cloud.signedInUser);
     cloud.signOutBtn.hidden = !signedIn;
     cloud.signInBtn.hidden = signedIn;
+    cloud.pushBtn.hidden = !signedIn;
+    cloud.pullBtn.hidden = !signedIn;
     cloud.pushBtn.disabled = cloud.busy || !signedIn;
     cloud.pullBtn.disabled = cloud.busy || !signedIn;
     cloud.signInBtn.disabled = cloud.busy;
     cloud.signOutBtn.disabled = cloud.busy;
     cloud.emailInput.disabled = cloud.busy || signedIn;
+    cloud.passwordInput.disabled = cloud.busy || signedIn;
 
     if (cloud.busy || cloud.loadingContext) return;
     if (!cloud.statusEl.textContent.trim()) {
@@ -447,13 +452,89 @@
     }
   }
 
-  async function refreshSignedInUser() {
-    const { data } = await sb.auth.getUser();
-    cloud.signedInUser = data?.user || null;
+  function renderSignedOutState() {
+    [lists.general, lists.scheduling].forEach((list) => {
+      list.listEl.innerHTML = '';
+      const empty = document.createElement('li');
+      empty.className = 'coming-soon signed-out-placeholder';
+      empty.textContent = 'Sign in to view your dashboard.';
+      list.listEl.appendChild(empty);
+    });
+
+    meeting.listEl.innerHTML = '';
+    const emptyMeeting = document.createElement('p');
+    emptyMeeting.className = 'meeting-empty signed-out-placeholder';
+    emptyMeeting.textContent = 'Sign in to view your dashboard.';
+    meeting.listEl.appendChild(emptyMeeting);
+  }
+
+  function applyAuthUiState(options = {}) {
+    const signedIn = Boolean(cloud.signedInUser);
+    isAuthenticated = signedIn;
+
+    [lists.general, lists.scheduling].forEach((list) => {
+      list.form.hidden = !signedIn;
+      list.clearBtn.hidden = !signedIn;
+    });
+    meeting.form.hidden = !signedIn;
+
     updateCloudUi();
-    if (!cloud.signedInUser) {
-      setStatus('Signed out', 'info');
+
+    if (!signedIn) {
+      renderSignedOutState();
+      closeModal(true);
+      closeMeetingBigEdit();
+      return;
     }
+
+    if (options.deferRender) {
+      [lists.general, lists.scheduling].forEach((list) => {
+        list.listEl.innerHTML = '';
+      });
+      meeting.listEl.innerHTML = '';
+      return;
+    }
+
+    renderAll();
+  }
+
+  function emptyDashboardState() {
+    return {
+      generalActions: [],
+      schedulingActions: [],
+      meetingNotes: [],
+      meetingNotesUIState: { collapsedMonths: {}, collapsedWeeks: {} },
+      nextActionNumber: DEFAULT_NEXT_NUMBER,
+    };
+  }
+
+  async function handleAuthStateChange(event, session) {
+    cloud.signedInUser = session?.user || null;
+    applyAuthUiState({ deferRender: event === 'SIGNED_IN' || event === 'INITIAL_SESSION' });
+
+    if (!cloud.signedInUser) {
+      if (event === 'SIGNED_OUT') {
+        setStatus('Signed out', 'info');
+      }
+      return;
+    }
+
+    if (event === 'SIGNED_IN' || event === 'INITIAL_SESSION') {
+      setStatus('Loading from cloud…', 'loading');
+      const loaded = await pullCloudState({ silentNoData: true, context: 'authLoad' });
+      if (!loaded) {
+        setLocalDashboardState(emptyDashboardState());
+      }
+      setStatus('Cloud loaded', 'success');
+      if (cloud.signedInUser.email) {
+        showToast(`Signed in as ${cloud.signedInUser.email}`, 'success');
+      }
+    }
+  }
+
+  async function initializeAuth() {
+    const { data: { session } } = await sb.auth.getSession();
+    await handleAuthStateChange('INITIAL_SESSION', session || null);
   }
 
   function loadData() {
@@ -889,18 +970,23 @@
   }
 
   function renderAll() {
+    if (!isAuthenticated) {
+      renderSignedOutState();
+      return;
+    }
     renderList(lists.general);
     renderList(lists.scheduling);
     renderMeetings();
   }
 
-  function addAction(list, rawText) {
-    const text = rawText.trim();
+  function addAction(list, rawHtml) {
+    const html = sanitizeRichHtml(rawHtml);
+    const text = htmlToPlainText(html);
     if (!text) return;
     list.actions.unshift({
       number: nextActionNumber,
       text,
-      html: textToRichHtml(text),
+      html,
       createdAt: Date.now(),
       updatedAt: Date.now(),
       completed: false,
@@ -1032,8 +1118,8 @@
   function bindListEvents(list) {
     list.form.addEventListener('submit', (event) => {
       event.preventDefault();
-      addAction(list, list.input.value);
-      list.form.reset();
+      addAction(list, list.input.innerHTML);
+      list.input.innerHTML = '';
       list.input.focus();
     });
 
@@ -1100,39 +1186,36 @@
   }
 
 
-  async function signInWithMagicLink() {
+  async function signInWithPassword() {
     if (cloud.busy) return;
     const email = cloud.emailInput.value.trim();
-    if (!email) {
-      setStatus('Sign in failed: Enter an email address first.', 'error');
+    const password = cloud.passwordInput.value;
+    if (!email || !password) {
+      setStatus('Sign in failed: Enter email and password first.', 'error');
       return;
     }
 
     setLoading(true, 'signIn');
-    setStatus(`Sending magic link to ${email}…`, 'loading');
     try {
-      const { error } = await sb.auth.signInWithOtp({
-        email,
-        options: { emailRedirectTo: SUPABASE_REDIRECT_URL },
-      });
+      const { data, error } = await sb.auth.signInWithPassword({ email, password });
       if (error) {
         setStatus(`Sign in failed: ${error.message}`, 'error');
         return;
       }
-      setStatus(`Magic link sent to ${email}. Check your inbox.`, 'success');
+      cloud.passwordInput.value = '';
     } finally {
       setLoading(false);
     }
   }
 
   async function signOutCloud() {
+    cloud.signedInUser = null;
+    applyAuthUiState();
     const { error } = await sb.auth.signOut();
     if (error) {
       setStatus(`Sign out failed: ${error.message}`, 'error');
       return;
     }
-    cloud.signedInUser = null;
-    updateCloudUi();
     setStatus('Signed out', 'info');
   }
 
@@ -1145,7 +1228,7 @@
       if (!user) {
         cloud.signedInUser = null;
         setStatus('Please sign in first.', 'error');
-        return;
+        return false;
       }
 
       const state = getLocalDashboardState();
@@ -1169,16 +1252,16 @@
     }
   }
 
-  async function pullCloudState() {
+  async function pullCloudState(options = {}) {
     if (cloud.busy) return;
-    setLoading(true, 'pull');
+    setLoading(true, options.context || 'pull');
     try {
       const { data: userData } = await sb.auth.getUser();
       const user = userData?.user;
       if (!user) {
         cloud.signedInUser = null;
         setStatus('Please sign in first.', 'error');
-        return;
+        return false;
       }
 
       const { data, error } = await sb.from('dashboard_state')
@@ -1188,11 +1271,13 @@
 
       if (error) {
         if (error.code === 'PGRST116') {
-          setStatus('No cloud data yet. Push first.', 'warning');
-          return;
+          if (!options.silentNoData) {
+            setStatus('No cloud data yet. Push first.', 'warning');
+          }
+          return false;
         }
         setStatus(`Pull failed: ${error.message}`, 'error');
-        return;
+        return false;
       }
 
       setLocalDashboardState(data.state || {});
@@ -1200,33 +1285,32 @@
       localStorage.setItem(CLOUD_LAST_PULL_KEY, pulledAt);
       const label = formatCloudTimestamp(data.updated_at || pulledAt) || data.updated_at || pulledAt;
       setStatus(`Pull successful (${label})`, 'success');
+      return true;
     } finally {
       setLoading(false);
     }
   }
 
   function bindCloudEvents() {
-    cloud.signInBtn.addEventListener('click', signInWithMagicLink);
+    cloud.signInBtn.addEventListener('click', signInWithPassword);
     cloud.signOutBtn.addEventListener('click', signOutCloud);
     cloud.pushBtn.addEventListener('click', pushCloudState);
     cloud.pullBtn.addEventListener('click', pullCloudState);
 
-    cloud.emailInput.addEventListener('keydown', (event) => {
+    const submitSignIn = (event) => {
       if (event.key === 'Enter') {
         event.preventDefault();
-        signInWithMagicLink();
+        signInWithPassword();
       }
-    });
+    };
+
+    cloud.emailInput.addEventListener('keydown', submitSignIn);
+    cloud.passwordInput.addEventListener('keydown', submitSignIn);
 
     sb.auth.onAuthStateChange((event, session) => {
-      cloud.signedInUser = session?.user || null;
-      updateCloudUi();
-      if (event === 'SIGNED_IN' && session?.user?.email) {
-        setStatus(`Signed in as ${session.user.email}`, 'success');
-      }
-      if (event === 'SIGNED_OUT') {
-        setStatus('Signed out', 'info');
-      }
+      handleAuthStateChange(event, session).catch((error) => {
+        setStatus(`Auth state failed: ${error.message}`, 'error');
+      });
     });
   }
 
@@ -1255,6 +1339,8 @@
 
   document.querySelectorAll('.rtf-toolbar').forEach(bindRtfToolbar);
   bindEditorShortcuts(modalTextInput);
+  bindEditorShortcuts(lists.general.input);
+  bindEditorShortcuts(lists.scheduling.input);
   bindEditorShortcuts(meeting.notesEditor);
   bindEditorShortcuts(meetingBigEditNotesEditor);
 
@@ -1302,7 +1388,7 @@
   bindCloudEvents();
   loadData();
   renderAll();
-  refreshSignedInUser().catch((error) => {
+  initializeAuth().catch((error) => {
     setStatus(`Auth check failed: ${error.message}`, 'error');
   });
 })();

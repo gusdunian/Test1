@@ -190,7 +190,10 @@ body { margin: 0; font-family: Inter, -apple-system, BlinkMacSystemFont, 'Segoe 
 .header-icon { width: 1.6rem; height: 1.6rem; flex: 0 0 auto; stroke: currentColor; stroke-width: 1.9; fill: none; stroke-linecap: round; stroke-linejoin: round; }
 .action-toolbar { display: flex; align-items: flex-start; gap: 0.75rem; padding: 0.8rem 1rem 0.5rem; }
 .add-action-form { display: flex; gap: 0.4rem; margin: 0; flex: 1; min-width: 0; align-items: flex-start; }
-.add-action-form textarea { font-family: inherit; flex: 1; min-width: 0; border: 1px solid var(--border); border-radius: 8px; padding: 0.5rem 0.7rem; font-size: 0.96rem; line-height: 1.25; resize: vertical; min-height: 2.8rem; }
+.compact-editor-wrap { flex: 1; min-width: 0; display: grid; gap: 0.25rem; }
+.compact-rich-editor { font-family: inherit; width: 100%; border: 1px solid var(--border); border-radius: 8px; padding: 0.45rem 0.65rem; font-size: 0.92rem; line-height: 1.25; min-height: 2.8rem; max-height: 5.5rem; overflow: auto; }
+.compact-rich-editor:empty::before { content: attr(data-placeholder); color: #94a3b8; }
+.signed-out-placeholder { border: 1px dashed #cbd5e1; border-radius: 8px; padding: 0.75rem; background: #f8fafc; color: #475569; margin-top: 0.65rem; }
 button { font-family: inherit; background: var(--primary); color: #fff; border: 0; border-radius: 8px; padding: 0.5rem 0.75rem; font-size: 0.95rem; line-height: 1; cursor: pointer; }
 button:hover, button:focus-visible { background: var(--primary-hover); }
 button:focus-visible, textarea:focus-visible, input:focus-visible, [contenteditable='true']:focus-visible { outline: 3px solid #93c5fd; outline-offset: 2px; }
