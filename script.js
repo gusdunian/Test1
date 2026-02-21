@@ -23,6 +23,7 @@
   const PERSON_TAG_REGEX = /(^|[\s(>])(@[A-Za-z0-9_-]+)/g;
   const HASH_TAG_REGEX = /(^|[\s(>])(#[A-Za-z0-9_-]+)/g;
   const URGENCY_LOW = 3;
+  const MOVE_HIGHLIGHT_MS = 5000;
 
   const DEFAULT_DASHBOARD_TITLE = 'Angus’ Working Dashboard';
 
@@ -143,6 +144,7 @@
   };
 
   const THEME_PRESET_NAMES = [...Object.keys(THEMES), 'Custom'];
+  const movedActionHighlights = new Map();
 
   const collapsedCardsDefault = {
     generalActions: false,
@@ -1339,7 +1341,37 @@
   }
 
   function sortWithinUrgencyTier(a, b) {
+    const aIsTimeDependent = a.timingFlag === 'T';
+    const bIsTimeDependent = b.timingFlag === 'T';
+    if (aIsTimeDependent !== bIsTimeDependent) return aIsTimeDependent ? -1 : 1;
     return sortNewestFirst(a, b);
+  }
+
+  function getActionIdentifier(list, action) {
+    return String(list.hideNumber ? action.id : action.number);
+  }
+
+  function queueMovedActionHighlight(list, action) {
+    const key = `${list.key}:${getActionIdentifier(list, action)}`;
+    const existing = movedActionHighlights.get(key);
+    if (existing?.timeoutId) clearTimeout(existing.timeoutId);
+    const timeoutId = window.setTimeout(() => {
+      movedActionHighlights.delete(key);
+      const row = list.listEl.querySelector(`.action-item[data-action-id="${CSS.escape(getActionIdentifier(list, action))}"]`);
+      if (row) row.classList.remove('move-highlight');
+    }, MOVE_HIGHLIGHT_MS);
+    movedActionHighlights.set(key, { timeoutId, expiresAt: Date.now() + MOVE_HIGHLIGHT_MS });
+  }
+
+  function isActionMoveHighlighted(list, action) {
+    const key = `${list.key}:${getActionIdentifier(list, action)}`;
+    const entry = movedActionHighlights.get(key);
+    if (!entry) return false;
+    if (entry.expiresAt <= Date.now()) {
+      movedActionHighlights.delete(key);
+      return false;
+    }
+    return true;
   }
 
   function getOrderedActions(list) {
@@ -1539,11 +1571,15 @@
     visible.forEach((action) => {
       const li = document.createElement('li');
       li.className = 'action-item';
+      li.dataset.actionId = getActionIdentifier(list, action);
       if (action.completed) li.classList.add('completed');
       if (action.deleted) li.classList.add('deleted');
       if (!action.completed && !action.deleted && action.urgencyLevel === 1) li.classList.add('urgent');
       if (!action.completed && !action.deleted && action.urgencyLevel === 2) li.classList.add('super-urgent');
       if (!action.completed && !action.deleted && action.urgencyLevel === URGENCY_LOW) li.classList.add('low-priority');
+      if (!action.completed && !action.deleted && action.timingFlag === 'T') li.classList.add('timing-time-dependent');
+      if (!action.completed && !action.deleted && action.timingFlag === 'D') li.classList.add('timing-delegated');
+      if (isActionMoveHighlighted(list, action)) li.classList.add('move-highlight');
 
       const checkbox = document.createElement('input');
       checkbox.type = 'checkbox';
@@ -1562,14 +1598,6 @@
       const number = document.createElement('span');
       number.className = 'action-number';
       number.textContent = list.hideNumber ? '' : String(action.number);
-      const timingFlag = action.timingFlag || null;
-      if (!list.hideNumber && timingFlag) {
-        const timingMarker = document.createElement('span');
-        timingMarker.className = 'action-timing-marker';
-        timingMarker.textContent = timingFlag;
-        number.appendChild(document.createTextNode(' '));
-        number.appendChild(timingMarker);
-      }
       if (list.hideNumber) number.hidden = true;
 
       const textWrap = document.createElement('div');
@@ -1612,6 +1640,7 @@
       urgentBtn.addEventListener('click', (event) => {
         event.stopPropagation();
         cycleUrgency(action);
+        queueMovedActionHighlight(list, action);
         saveList(list);
         renderList(list);
       });
@@ -1628,6 +1657,7 @@
         event.stopPropagation();
         action.timingFlag = cycleTimingFlag(action.timingFlag || null);
         action.updatedAt = Date.now();
+        queueMovedActionHighlight(list, action);
         saveList(list);
         renderList(list);
       });
@@ -3285,6 +3315,7 @@
     const action = getActiveModalAction();
     if (!action || !activeModalContext || action.deleted) return;
     cycleUrgency(action);
+    queueMovedActionHighlight(activeModalContext.list, action);
     saveList(activeModalContext.list);
     modalStatus.textContent = modalStatusText(action);
     updateModalUrgencyUI(action);
@@ -3298,6 +3329,7 @@
       if (!action || !activeModalContext || action.deleted) return;
       action.timingFlag = cycleTimingFlag(action.timingFlag || null);
       action.updatedAt = Date.now();
+      queueMovedActionHighlight(activeModalContext.list, action);
       saveList(activeModalContext.list);
       modalStatus.textContent = modalStatusText(action);
       updateModalTimeDependentUI(action);
