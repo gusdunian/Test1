@@ -102,6 +102,18 @@
     collapsedCards: { ...collapsedCardsDefault },
   };
 
+  const appState = {
+    stateVersion: LATEST_STATE_VERSION,
+    generalActions: [],
+    schedulingActions: [],
+    meetingNotes: [],
+    bigTicketItems: [],
+    generalNotes: [],
+    ui: { collapsedCards: { ...collapsedCardsDefault } },
+    meetingNotesUIState: { collapsedMonths: {}, collapsedWeeks: {} },
+    nextActionNumber: DEFAULT_NEXT_NUMBER,
+  };
+
   const cloud = {
     emailInput: document.getElementById('cloud-email-input'),
     passwordInput: document.getElementById('cloud-password-input'),
@@ -379,36 +391,43 @@
   }
 
   function saveList(list) {
+    syncAppStateFromMemory();
     localStorage.setItem(list.key, JSON.stringify(list.actions));
     if (!suppressAutosync) requestAutosync();
   }
 
   function saveMeetings() {
+    syncAppStateFromMemory();
     localStorage.setItem(MEETING_STORAGE_KEY, JSON.stringify(meeting.items));
     if (!suppressAutosync) requestAutosync();
   }
 
   function saveBigTicketItems() {
+    syncAppStateFromMemory();
     localStorage.setItem('bigTicketItems', JSON.stringify(bigTicket.items));
     if (!suppressAutosync) requestAutosync();
   }
 
   function saveGeneralNotes() {
+    syncAppStateFromMemory();
     localStorage.setItem('generalNotes', JSON.stringify(generalNotes.items));
     if (!suppressAutosync) requestAutosync();
   }
 
   function saveUiState() {
+    syncAppStateFromMemory();
     localStorage.setItem('dashboardUiState', JSON.stringify(uiState));
     if (!suppressAutosync) requestAutosync();
   }
 
   function saveMeetingUIState() {
+    syncAppStateFromMemory();
     localStorage.setItem(MEETING_UI_STORAGE_KEY, JSON.stringify(meeting.uiState));
     if (!suppressAutosync) requestAutosync();
   }
 
   function saveNextNumber() {
+    syncAppStateFromMemory();
     localStorage.setItem(NEXT_NUMBER_STORAGE_KEY, String(nextActionNumber));
     localStorage.setItem(LOCAL_STATE_VERSION_KEY, String(LATEST_STATE_VERSION));
     if (!suppressAutosync) requestAutosync();
@@ -553,18 +572,34 @@
     }
   }
 
-  function getLocalDashboardState() {
+  function getStateSnapshotFromMemory() {
     return migrateState({
-      stateVersion: Number(localStorage.getItem(LOCAL_STATE_VERSION_KEY)) || LATEST_STATE_VERSION,
-      generalActions: parseStoredJson(localStorage.getItem(GENERAL_STORAGE_KEY), []),
-      schedulingActions: parseStoredJson(localStorage.getItem(SCHEDULING_STORAGE_KEY), []),
-      meetingNotes: parseStoredJson(localStorage.getItem(MEETING_STORAGE_KEY), []),
-      bigTicketItems: parseStoredJson(localStorage.getItem('bigTicketItems'), []),
-      generalNotes: parseStoredJson(localStorage.getItem('generalNotes'), []),
-      ui: parseStoredJson(localStorage.getItem('dashboardUiState'), { collapsedCards: { ...collapsedCardsDefault } }),
-      meetingNotesUIState: parseStoredJson(localStorage.getItem(MEETING_UI_STORAGE_KEY), { collapsedMonths: {}, collapsedWeeks: {} }),
-      nextActionNumber: Number(localStorage.getItem(NEXT_NUMBER_STORAGE_KEY)) || DEFAULT_NEXT_NUMBER,
+      stateVersion: appState.stateVersion,
+      generalActions: appState.generalActions,
+      schedulingActions: appState.schedulingActions,
+      meetingNotes: appState.meetingNotes,
+      bigTicketItems: appState.bigTicketItems,
+      generalNotes: appState.generalNotes,
+      ui: appState.ui,
+      meetingNotesUIState: appState.meetingNotesUIState,
+      nextActionNumber: appState.nextActionNumber,
     });
+  }
+
+  function syncAppStateFromMemory() {
+    appState.stateVersion = LATEST_STATE_VERSION;
+    appState.generalActions = lists.general.actions;
+    appState.schedulingActions = lists.scheduling.actions;
+    appState.meetingNotes = meeting.items;
+    appState.bigTicketItems = bigTicket.items;
+    appState.generalNotes = generalNotes.items;
+    appState.ui = { collapsedCards: uiState.collapsedCards };
+    appState.meetingNotesUIState = meeting.uiState;
+    appState.nextActionNumber = nextActionNumber;
+  }
+
+  function getLocalDashboardState() {
+    return getStateSnapshotFromMemory();
   }
 
   function setLocalDashboardState(stateObj) {
@@ -580,6 +615,7 @@
       localStorage.setItem(NEXT_NUMBER_STORAGE_KEY, String(state.nextActionNumber));
       localStorage.setItem(LOCAL_STATE_VERSION_KEY, String(state.stateVersion || LATEST_STATE_VERSION));
       loadData();
+      syncAppStateFromMemory();
       renderAll();
     });
   }
@@ -777,6 +813,7 @@
       saveBigTicketItems();
       saveGeneralNotes();
       saveUiState();
+      syncAppStateFromMemory();
     });
   }
 
@@ -1105,8 +1142,6 @@
 
   function renderMeetings() {
     meeting.listEl.innerHTML = '';
-    bigTicket.listEl.innerHTML = '';
-    generalNotes.listEl.innerHTML = '';
     if (!meeting.items.length) {
       const empty = document.createElement('p');
       empty.className = 'meeting-empty';
@@ -1351,6 +1386,13 @@
       renderSignedOutState();
       return;
     }
+    console.debug('[renderAll]', {
+      generalActions: lists.general.actions.length,
+      schedulingActions: lists.scheduling.actions.length,
+      bigTicketItems: bigTicket.items.length,
+      meetingNotes: meeting.items.length,
+      generalNotes: generalNotes.items.length,
+    });
     renderList(lists.general);
     renderList(lists.scheduling);
     renderBigTicketItems();
