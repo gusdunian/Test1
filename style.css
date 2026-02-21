@@ -138,18 +138,6 @@ body { margin: 0; font-family: Inter, -apple-system, BlinkMacSystemFont, 'Segoe 
 }
 
 
-.cloud-import-label {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-}
-
-.cloud-import-label.is-disabled {
-  opacity: 0.6;
-  pointer-events: none;
-}
-
 .cloud-meta {
   display: none;
 }
@@ -409,8 +397,14 @@ button:focus-visible, textarea:focus-visible, input:focus-visible, [contentedita
 .settings-dialog { width: min(560px, calc(100vw - 2rem)); }
 .settings-form { display: grid; gap: 0.5rem; }
 .settings-row { display: flex; align-items: center; justify-content: space-between; gap: 0.7rem; font-size: 0.9rem; color: #1f2937; }
+.settings-row-stacked { align-items: flex-start; flex-direction: column; }
 .settings-row input[type='color'] { width: 3rem; height: 2rem; border: 1px solid var(--border); border-radius: 6px; background: transparent; padding: 0.15rem; }
-.settings-row select, .settings-row input[type='text'] { min-width: 10rem; border: 1px solid var(--border); border-radius: 6px; padding: 0.35rem 0.45rem; font: inherit; }
+.settings-row select, .settings-row input[type='text'], .settings-row input[type='file'] { min-width: 10rem; border: 1px solid var(--border); border-radius: 6px; padding: 0.35rem 0.45rem; font: inherit; }
+.settings-row-stacked input[type='text'], .settings-row-stacked input[type='file'] { width: 100%; min-width: 100%; }
+#dashboard-title-input { width: 100%; min-width: 100%; overflow: visible; text-overflow: unset; }
+.import-mode-group { border: 1px solid var(--border); border-radius: 8px; padding: 0.55rem 0.65rem; display: grid; gap: 0.45rem; margin: 0; }
+.import-mode-group legend { padding: 0 0.25rem; font-weight: 600; color: #1f2937; }
+.import-mode-group label { display: flex; align-items: center; gap: 0.45rem; font-size: 0.9rem; color: #1f2937; }
 
 .general-note-month-row { display: flex; align-items: center; gap: 0.35rem; }
 .general-note-items { margin-left: 1rem; }

@@ -25,10 +25,7 @@
           <button id="cloud-sign-in-btn" type="button" class="cloud-btn">Sign in</button>
           <button id="cloud-sign-out-btn" type="button" class="cloud-btn" hidden>Sign out</button>
           <button id="cloud-export-btn" type="button" class="cloud-btn" disabled hidden>Export</button>
-          <label id="cloud-import-label" class="cloud-btn cloud-import-label" hidden>
-            Import
-            <input id="cloud-import-input" type="file" accept="application/json,.json" hidden />
-          </label>
+          <button id="cloud-import-btn" type="button" class="cloud-btn" disabled hidden>Import</button>
           <button id="cloud-settings-btn" type="button" class="cloud-btn" hidden>Settings</button>
         </div>
         <div class="cloud-status-row">
@@ -374,13 +371,24 @@
         <button id="settings-modal-close" type="button" class="modal-close" aria-label="Close modal">×</button>
         <h3 id="settings-modal-title">Settings</h3>
         <form id="settings-form" class="settings-form" autocomplete="off">
-          <label class="settings-row">Dashboard name <input id="dashboard-title-input" type="text" maxlength="120" /></label>
+          <label class="settings-row settings-row-stacked">Dashboard name <input id="dashboard-title-input" type="text" maxlength="120" /></label>
           <label class="settings-row">Theme
             <select id="theme-preset-select">
-              <option value="Dark">Dark</option>
-              <option value="Bright">Bright</option>
-              <option value="Pastel">Pastel</option>
-              <option value="Colourful">Colourful</option>
+              <option value="Office Blue">Office Blue</option>
+              <option value="Office Teal">Office Teal</option>
+              <option value="Office Green">Office Green</option>
+              <option value="Office Red">Office Red</option>
+              <option value="Office Orange">Office Orange</option>
+              <option value="Office Purple">Office Purple</option>
+              <option value="Office Grey">Office Grey</option>
+              <option value="Navy">Navy</option>
+              <option value="Charcoal">Charcoal</option>
+              <option value="Forest">Forest</option>
+              <option value="Crimson">Crimson</option>
+              <option value="Sunshine">Sunshine</option>
+              <option value="Pastel Mint">Pastel Mint</option>
+              <option value="Pastel Lavender">Pastel Lavender</option>
+              <option value="Pastel Peach">Pastel Peach</option>
               <option value="Custom">Custom</option>
             </select>
           </label>
@@ -392,6 +400,28 @@
           <div class="modal-footer">
             <button id="settings-cancel-btn" type="button" class="subtle-button">Cancel</button>
             <button type="submit" class="subtle-button">Save</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <div id="import-modal" class="modal" hidden>
+      <div id="import-modal-backdrop" class="modal-backdrop"></div>
+      <div class="modal-dialog settings-dialog" role="dialog" aria-modal="true" aria-labelledby="import-modal-title">
+        <button id="import-modal-close" type="button" class="modal-close" aria-label="Close modal">×</button>
+        <h3 id="import-modal-title">Import Data</h3>
+        <form id="import-form" class="settings-form" autocomplete="off">
+          <label class="settings-row settings-row-stacked">Backup file
+            <input id="import-file-input" type="file" accept="application/json,.json" required />
+          </label>
+          <fieldset class="import-mode-group">
+            <legend>Import mode</legend>
+            <label><input type="radio" name="import-mode" value="merge" checked required /> Merge (add to existing)</label>
+            <label><input type="radio" name="import-mode" value="overwrite" required /> Overwrite (replace everything)</label>
+          </fieldset>
+          <div class="modal-footer">
+            <button id="import-cancel-btn" type="button" class="subtle-button">Cancel</button>
+            <button type="submit" class="subtle-button">Import</button>
           </div>
         </form>
       </div>
