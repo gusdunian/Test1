@@ -30,35 +30,114 @@
   };
 
   const THEMES = {
-    Dark: {
-      bannerBg: '#0f172a',
-      bannerFg: '#f8fafc',
-      pageBg: '#111827',
-      cardHeaderBg: '#1f2937',
-      cardHeaderFg: '#f8fafc',
-    },
-    Bright: {
+    'Office Blue': {
       bannerBg: '#2563eb',
       bannerFg: '#ffffff',
       pageBg: '#f8fafc',
       cardHeaderBg: '#1d4ed8',
       cardHeaderFg: '#ffffff',
     },
-    Pastel: {
-      bannerBg: '#9f7aea',
+    'Office Teal': {
+      bannerBg: '#0f766e',
+      bannerFg: '#f0fdfa',
+      pageBg: '#f0fdfa',
+      cardHeaderBg: '#115e59',
+      cardHeaderFg: '#f0fdfa',
+    },
+    'Office Green': {
+      bannerBg: '#15803d',
+      bannerFg: '#f0fdf4',
+      pageBg: '#f0fdf4',
+      cardHeaderBg: '#166534',
+      cardHeaderFg: '#f0fdf4',
+    },
+    'Office Red': {
+      bannerBg: '#b91c1c',
+      bannerFg: '#fef2f2',
+      pageBg: '#fef2f2',
+      cardHeaderBg: '#991b1b',
+      cardHeaderFg: '#fef2f2',
+    },
+    'Office Orange': {
+      bannerBg: '#c2410c',
+      bannerFg: '#fff7ed',
+      pageBg: '#fff7ed',
+      cardHeaderBg: '#9a3412',
+      cardHeaderFg: '#fff7ed',
+    },
+    'Office Purple': {
+      bannerBg: '#7e22ce',
+      bannerFg: '#faf5ff',
+      pageBg: '#faf5ff',
+      cardHeaderBg: '#6b21a8',
+      cardHeaderFg: '#faf5ff',
+    },
+    'Office Grey': {
+      bannerBg: '#475569',
       bannerFg: '#f8fafc',
-      pageBg: '#fdf2f8',
-      cardHeaderBg: '#c4b5fd',
+      pageBg: '#f8fafc',
+      cardHeaderBg: '#334155',
+      cardHeaderFg: '#f8fafc',
+    },
+    Navy: {
+      bannerBg: '#1e3a8a',
+      bannerFg: '#eff6ff',
+      pageBg: '#eff6ff',
+      cardHeaderBg: '#1e40af',
+      cardHeaderFg: '#eff6ff',
+    },
+    Charcoal: {
+      bannerBg: '#1f2937',
+      bannerFg: '#f9fafb',
+      pageBg: '#f3f4f6',
+      cardHeaderBg: '#111827',
+      cardHeaderFg: '#f9fafb',
+    },
+    Forest: {
+      bannerBg: '#14532d',
+      bannerFg: '#f0fdf4',
+      pageBg: '#ecfdf5',
+      cardHeaderBg: '#166534',
+      cardHeaderFg: '#f0fdf4',
+    },
+    Crimson: {
+      bannerBg: '#9f1239',
+      bannerFg: '#fff1f2',
+      pageBg: '#fff1f2',
+      cardHeaderBg: '#881337',
+      cardHeaderFg: '#fff1f2',
+    },
+    Sunshine: {
+      bannerBg: '#ca8a04',
+      bannerFg: '#422006',
+      pageBg: '#fefce8',
+      cardHeaderBg: '#eab308',
+      cardHeaderFg: '#422006',
+    },
+    'Pastel Mint': {
+      bannerBg: '#6ee7b7',
+      bannerFg: '#064e3b',
+      pageBg: '#f0fdf4',
+      cardHeaderBg: '#34d399',
+      cardHeaderFg: '#064e3b',
+    },
+    'Pastel Lavender': {
+      bannerBg: '#c4b5fd',
+      bannerFg: '#312e81',
+      pageBg: '#f5f3ff',
+      cardHeaderBg: '#a78bfa',
       cardHeaderFg: '#312e81',
     },
-    Colourful: {
-      bannerBg: '#ea580c',
-      bannerFg: '#fff7ed',
-      pageBg: '#eff6ff',
-      cardHeaderBg: '#059669',
-      cardHeaderFg: '#ecfeff',
+    'Pastel Peach': {
+      bannerBg: '#fdba74',
+      bannerFg: '#7c2d12',
+      pageBg: '#fff7ed',
+      cardHeaderBg: '#fb923c',
+      cardHeaderFg: '#7c2d12',
     },
   };
+
+  const THEME_PRESET_NAMES = [...Object.keys(THEMES), 'Custom'];
 
   const collapsedCardsDefault = {
     generalActions: false,
@@ -121,6 +200,12 @@
   const themePageBgInput = document.getElementById('theme-page-bg');
   const themeCardHeaderBgInput = document.getElementById('theme-card-header-bg');
   const themeCardHeaderFgInput = document.getElementById('theme-card-header-fg');
+  const importModal = document.getElementById('import-modal');
+  const importModalBackdrop = document.getElementById('import-modal-backdrop');
+  const importModalClose = document.getElementById('import-modal-close');
+  const importForm = document.getElementById('import-form');
+  const importFileInput = document.getElementById('import-file-input');
+  const importCancelBtn = document.getElementById('import-cancel-btn');
   const meetingBigEditCancel = document.getElementById('meeting-big-edit-cancel');
   const generalNoteBigEditCancel = document.getElementById('general-note-big-edit-cancel');
 
@@ -161,7 +246,7 @@
   const uiState = {
     collapsedCards: { ...collapsedCardsDefault },
     collapsedGeneralNotesMonths: {},
-    theme: { presetName: 'Bright', vars: { ...defaultTheme } },
+    theme: { presetName: 'Office Blue', vars: { ...defaultTheme } },
     dashboardTitle: DEFAULT_DASHBOARD_TITLE,
   };
 
@@ -175,7 +260,7 @@
     ui: {
       collapsedCards: { ...collapsedCardsDefault },
       collapsedGeneralNotesMonths: {},
-      theme: { presetName: 'Bright', vars: { ...defaultTheme } },
+      theme: { presetName: 'Office Blue', vars: { ...defaultTheme } },
       dashboardTitle: DEFAULT_DASHBOARD_TITLE,
     },
     meetingNotesUIState: { collapsedMonths: {}, collapsedWeeks: {} },
@@ -188,9 +273,8 @@
     signInBtn: document.getElementById('cloud-sign-in-btn'),
     signOutBtn: document.getElementById('cloud-sign-out-btn'),
     exportBtn: document.getElementById('cloud-export-btn'),
-    importLabel: document.getElementById('cloud-import-label'),
+    importBtn: document.getElementById('cloud-import-btn'),
     settingsBtn: document.getElementById('cloud-settings-btn'),
-    importInput: document.getElementById('cloud-import-input'),
     signedInDisplay: document.getElementById('cloud-signed-in-display'),
     signedInEmailEl: document.getElementById('cloud-signed-in-email'),
     collapseAllBtn: document.getElementById('collapse-all-btn'),
@@ -343,7 +427,7 @@
     const source = themeLike && typeof themeLike === 'object' ? themeLike : {};
     const varsSource = source.vars && typeof source.vars === 'object' ? source.vars : source;
     const vars = normalizeTheme(varsSource);
-    const presetName = ['Dark', 'Bright', 'Pastel', 'Colourful', 'Custom'].includes(source.presetName)
+    const presetName = THEME_PRESET_NAMES.includes(source.presetName)
       ? source.presetName
       : resolveThemePresetName(vars);
     return { presetName, vars };
@@ -903,7 +987,7 @@
     cloud.signOutBtn.hidden = !signedIn;
     cloud.signInBtn.hidden = signedIn;
     cloud.exportBtn.hidden = !signedIn;
-    cloud.importLabel.hidden = !signedIn;
+    cloud.importBtn.hidden = !signedIn;
     cloud.settingsBtn.hidden = !signedIn;
     cloud.collapseAllBtn.hidden = !signedIn;
     cloud.signedInDisplay.hidden = !signedIn;
@@ -911,7 +995,7 @@
     cloud.passwordInput.hidden = signedIn;
     cloud.statusEl.hidden = false;
     cloud.exportBtn.disabled = cloud.busy || !signedIn;
-    cloud.importLabel.classList.toggle('is-disabled', cloud.busy || !signedIn);
+    cloud.importBtn.disabled = cloud.busy || !signedIn || cloud.syncInFlight;
     cloud.signInBtn.disabled = cloud.busy || cloud.syncInFlight || signedIn;
     cloud.signOutBtn.disabled = cloud.busy || !signedIn;
     cloud.settingsBtn.disabled = cloud.busy || !signedIn || cloud.syncInFlight;
@@ -991,7 +1075,7 @@
       ui: {
       collapsedCards: { ...collapsedCardsDefault },
       collapsedGeneralNotesMonths: {},
-      theme: { presetName: 'Bright', vars: { ...defaultTheme } },
+      theme: { presetName: 'Office Blue', vars: { ...defaultTheme } },
       dashboardTitle: DEFAULT_DASHBOARD_TITLE,
     },
       meetingNotesUIState: { collapsedMonths: {}, collapsedWeeks: {} },
@@ -1893,6 +1977,20 @@
     settingsThemeSavedSnapshot = null;
   }
 
+  function openImportModal() {
+    importForm.reset();
+    const defaultMode = importForm.querySelector('input[name="import-mode"][value="merge"]');
+    if (defaultMode) defaultMode.checked = true;
+    importModal.hidden = false;
+    importFileInput.focus();
+  }
+
+  function closeImportModal() {
+    importModal.hidden = true;
+    importForm.reset();
+    importFileInput.value = '';
+  }
+
   function saveSettingsModal() {
     uiState.theme = settingsThemeDraft ? normalizeThemeState(settingsThemeDraft) : getThemeFromSettingsForm();
     uiState.dashboardTitle = dashboardTitleInput.value.trim() || DEFAULT_DASHBOARD_TITLE;
@@ -2262,33 +2360,110 @@
     }
   }
 
-  async function importCloudBackup(file) {
-    if (!file || !cloud.signedInUser || cloud.busy) return;
+  function extractActionNumber(action) {
+    const asNumber = Number(action?.number);
+    if (Number.isInteger(asNumber)) return asNumber;
+    const idAsNumber = Number(action?.id);
+    return Number.isInteger(idAsNumber) ? idAsNumber : null;
+  }
+
+  function dedupeActionsByNumber(items) {
+    const byNumber = new Map();
+    items.forEach((item) => {
+      const normalized = normalizeAction(item);
+      if (!normalized) return;
+      const number = extractActionNumber(normalized);
+      if (!Number.isInteger(number)) return;
+      normalized.number = number;
+      byNumber.set(number, normalized);
+    });
+    return Array.from(byNumber.values());
+  }
+
+  function mergeById(currentItems, importedItems, normalizer) {
+    const merged = new Map();
+    currentItems.forEach((item) => {
+      const normalized = normalizer(item);
+      if (normalized?.id) merged.set(normalized.id, normalized);
+    });
+    importedItems.forEach((item) => {
+      const normalized = normalizer(item);
+      if (normalized?.id) merged.set(normalized.id, normalized);
+    });
+    return Array.from(merged.values());
+  }
+
+  function computeNextActionNumber(state) {
+    const numbers = [
+      ...state.generalActions.map((item) => extractActionNumber(item)).filter(Number.isInteger),
+      ...state.schedulingActions.map((item) => extractActionNumber(item)).filter(Number.isInteger),
+    ];
+    const maxNumber = numbers.length ? Math.max(...numbers) : DEFAULT_NEXT_NUMBER - 1;
+    return maxNumber + 1;
+  }
+
+  function mergeDashboardState(currentState, importedState) {
+    const merged = migrateState({
+      ...currentState,
+      generalActions: dedupeActionsByNumber([...currentState.generalActions, ...importedState.generalActions]),
+      schedulingActions: dedupeActionsByNumber([...currentState.schedulingActions, ...importedState.schedulingActions]),
+      bigTicketItems: mergeById(currentState.bigTicketItems, importedState.bigTicketItems, normalizeBigTicketItem),
+      meetingNotes: mergeById(currentState.meetingNotes, importedState.meetingNotes, normalizeMeeting),
+      generalNotes: mergeById(currentState.generalNotes, importedState.generalNotes, normalizeGeneralNote),
+      ui: {
+        collapsedCards: currentState.ui?.collapsedCards || importedState.ui?.collapsedCards || { ...collapsedCardsDefault },
+        collapsedGeneralNotesMonths: currentState.ui?.collapsedGeneralNotesMonths || importedState.ui?.collapsedGeneralNotesMonths || {},
+        theme: currentState.ui?.theme || importedState.ui?.theme || normalizeThemeState(defaultTheme),
+        dashboardTitle: currentState.ui?.dashboardTitle || importedState.ui?.dashboardTitle || DEFAULT_DASHBOARD_TITLE,
+      },
+      meetingNotesUIState: currentState.meetingNotesUIState || importedState.meetingNotesUIState || { collapsedMonths: {}, collapsedWeeks: {} },
+      stateVersion: LATEST_STATE_VERSION,
+    });
+    merged.nextActionNumber = computeNextActionNumber(merged);
+    return merged;
+  }
+
+  async function importCloudBackup(file, mode) {
+    if (!file || !cloud.signedInUser || cloud.busy || !mode) return false;
     setLoading(true, 'import');
     try {
       const text = await file.text();
       const parsed = JSON.parse(text);
       if (!parsed || typeof parsed !== 'object' || !parsed.state) {
         setStatus('Import failed: invalid backup format.', 'error');
-        return;
+        return false;
       }
 
-      const migrated = migrateState({
+      const importedState = migrateState({
         stateVersion: Number(parsed.stateVersion) || Number(parsed.state?.stateVersion) || 1,
         ...parsed.state,
       });
-      setLocalDashboardState(migrated);
+
+      let finalState;
+      if (mode === 'overwrite') {
+        const confirmed = window.confirm('This will replace all current data. Continue?');
+        if (!confirmed) return false;
+        finalState = migrateState(importedState);
+      } else {
+        finalState = mergeDashboardState(getLocalDashboardState(), importedState);
+      }
+      finalState.nextActionNumber = computeNextActionNumber(finalState);
+
+      setLocalDashboardState(finalState);
       const result = await pushCloudState({ silentSuccess: true });
       if (!result || result === 'conflict') {
-        setStatus('Import applied locally, cloud sync needs retry.', 'warning');
-        return;
+        setStatus(`Imported (${mode}) locally; cloud sync needs retry.`, 'warning');
+        return true;
       }
-      setStatus('Backup imported and synced', 'success');
-      showToast('Backup import complete', 'success');
+      const verb = mode === 'overwrite' ? 'overwrite' : 'merge';
+      setStatus(`Imported (${verb})`, 'success');
+      showToast(`Imported (${verb})`, 'success');
+      return true;
     } catch (error) {
       setStatus(`Import failed: ${error.message}`, 'error');
+      return false;
     } finally {
-      cloud.importInput.value = '';
+      importFileInput.value = '';
       setLoading(false);
     }
   }
@@ -2340,10 +2515,7 @@
     cloud.signInBtn.addEventListener('click', signInWithPassword);
     cloud.signOutBtn.addEventListener('click', signOutCloud);
     cloud.exportBtn.addEventListener('click', exportCloudBackup);
-    cloud.importInput.addEventListener('change', (event) => {
-      const [file] = event.target.files || [];
-      importCloudBackup(file);
-    });
+    cloud.importBtn.addEventListener('click', openImportModal);
 
     const submitSignIn = (event) => {
       if (event.key === 'Enter') {
@@ -2491,9 +2663,27 @@
   settingsCancelBtn.addEventListener('click', () => closeSettingsModal());
   settingsModalClose.addEventListener('click', () => closeSettingsModal());
   settingsModalBackdrop.addEventListener('click', () => closeSettingsModal());
+  importForm.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const [file] = importFileInput.files || [];
+    const modeInput = importForm.querySelector('input[name="import-mode"]:checked');
+    if (!file || !modeInput?.value) {
+      setStatus('Select a file and import mode first.', 'warning');
+      return;
+    }
+    const imported = await importCloudBackup(file, modeInput.value);
+    if (imported) closeImportModal();
+  });
+  importCancelBtn.addEventListener('click', closeImportModal);
+  importModalClose.addEventListener('click', closeImportModal);
+  importModalBackdrop.addEventListener('click', closeImportModal);
   modalBackdrop.addEventListener('click', () => closeModal());
   window.addEventListener('keydown', (event) => {
     if (event.key !== 'Escape') return;
+    if (!importModal.hidden) {
+      closeImportModal();
+      return;
+    }
     if (!settingsModal.hidden) {
       closeSettingsModal();
       return;
