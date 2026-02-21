@@ -22,11 +22,11 @@
           <button id="cloud-sign-in-btn" type="button" class="cloud-btn">Sign in</button>
           <button id="cloud-sign-out-btn" type="button" class="cloud-btn" hidden>Sign out</button>
           <button id="cloud-export-btn" type="button" class="cloud-btn" disabled hidden>Export</button>
-          <button id="cloud-settings-btn" type="button" class="cloud-btn" hidden>Settings</button>
           <label id="cloud-import-label" class="cloud-btn cloud-import-label" hidden>
             Import
             <input id="cloud-import-input" type="file" accept="application/json,.json" hidden />
           </label>
+          <button id="cloud-settings-btn" type="button" class="cloud-btn" hidden>Settings</button>
         </div>
         <div id="cloud-status" class="cloud-status cloud-status-info" role="status" aria-live="polite">Ready</div>
       </section>
@@ -368,6 +368,15 @@
         <button id="settings-modal-close" type="button" class="modal-close" aria-label="Close modal">×</button>
         <h3 id="settings-modal-title">Settings</h3>
         <form id="settings-form" class="settings-form" autocomplete="off">
+          <label class="settings-row">Theme
+            <select id="theme-preset-select">
+              <option value="Dark">Dark</option>
+              <option value="Bright">Bright</option>
+              <option value="Pastel">Pastel</option>
+              <option value="Colourful">Colourful</option>
+              <option value="Custom">Custom</option>
+            </select>
+          </label>
           <label class="settings-row">Banner background colour <input id="theme-banner-bg" type="color" /></label>
           <label class="settings-row">Page background colour <input id="theme-page-bg" type="color" /></label>
           <label class="settings-row">Card header background colour <input id="theme-card-header-bg" type="color" /></label>
