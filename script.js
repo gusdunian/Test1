@@ -17,11 +17,12 @@
   const CLOUD_LAST_UPDATED_AT_KEY = 'lastCloudUpdatedAt';
   const LOCAL_DIRTY_SINCE_KEY = 'localDirtySince';
   const LOCAL_STATE_VERSION_KEY = 'dashboardStateVersion';
-  const LATEST_STATE_VERSION = 8;
+  const LATEST_STATE_VERSION = 9;
   const AUTOSYNC_DEBOUNCE_MS = 2000;
   const FOCUS_SYNC_DEBOUNCE_MS = 700;
   const PERSON_TAG_REGEX = /(^|[\s(>])(@[A-Za-z0-9_-]+)/g;
   const HASH_TAG_REGEX = /(^|[\s(>])(#[A-Za-z0-9_-]+)/g;
+  const URGENCY_LOW = 3;
 
   const DEFAULT_DASHBOARD_TITLE = 'Angus’ Working Dashboard';
 
@@ -159,6 +160,8 @@
   const modalBackdrop = document.getElementById('action-modal-backdrop');
   const modalCloseBtn = document.getElementById('modal-close-btn');
   const modalSaveBtn = document.getElementById('modal-save-btn');
+  const modalCancelBtn = document.getElementById('modal-cancel-btn');
+  const modalDictateBtn = document.getElementById('modal-dictate-btn');
   const modalTitle = document.getElementById('modal-title');
   const modalStatus = document.getElementById('modal-status');
   const modalTextInput = document.getElementById('modal-text-input');
@@ -176,6 +179,7 @@
   const meetingBigEditHourInput = document.getElementById('meeting-big-edit-hour-input');
   const meetingBigEditMinuteInput = document.getElementById('meeting-big-edit-minute-input');
   const meetingBigEditNotesEditor = document.getElementById('meeting-big-edit-notes-editor');
+  const meetingBigEditDictateBtn = document.getElementById('meeting-big-edit-dictate');
   const bigTicketModal = document.getElementById('big-ticket-modal');
   const bigTicketModalBackdrop = document.getElementById('big-ticket-modal-backdrop');
   const bigTicketModalClose = document.getElementById('big-ticket-modal-close');
@@ -188,6 +192,7 @@
   const generalNoteBigEditTitleInput = document.getElementById('general-note-big-edit-title-input');
   const generalNoteBigEditDateInput = document.getElementById('general-note-big-edit-date-input');
   const generalNoteBigEditEditor = document.getElementById('general-note-big-edit-editor');
+  const generalNoteBigEditDictateBtn = document.getElementById('general-note-big-edit-dictate');
   const mainContainer = document.getElementById('main-content');
   const columnsSection = document.querySelector('.columns');
   const signedOutMessage = document.getElementById('signed-out-message');
@@ -318,6 +323,8 @@
       input: document.getElementById('general-action-input'),
       listEl: document.getElementById('general-action-list'),
       clearBtn: document.getElementById('general-clear-completed-btn'),
+      createUrgencyBtn: document.getElementById('general-create-urgency-btn'),
+      createTimingBtn: document.getElementById('general-create-timing-btn'),
     },
     personal: {
       key: 'personalActions',
@@ -340,11 +347,19 @@
       input: document.getElementById('scheduling-action-input'),
       listEl: document.getElementById('scheduling-action-list'),
       clearBtn: document.getElementById('scheduling-clear-completed-btn'),
+      createUrgencyBtn: document.getElementById('scheduling-create-urgency-btn'),
+      createTimingBtn: document.getElementById('scheduling-create-timing-btn'),
     },
   };
 
   let nextActionNumber = DEFAULT_NEXT_NUMBER;
   let activeModalContext = null;
+  const creationDefaults = { urgencyLevel: 0, timingFlag: null };
+  const creationState = {
+    general: { ...creationDefaults },
+    scheduling: { ...creationDefaults },
+  };
+  const dictationState = { recognition: null, button: null, defaultTarget: null, fallbackTarget: null };
   let activeMeetingBigEditId = null;
   let activeMeetingBigEditDraft = null;
   let activeGeneralNoteBigEditId = null;
@@ -572,8 +587,8 @@
       html,
       html_inline: richHtmlToInlineHtml(typeof item?.html_inline === 'string' ? item.html_inline : html),
       text,
-      urgencyLevel: Math.max(0, Math.min(2, Number.isInteger(item?.urgencyLevel) ? item.urgencyLevel : 0)),
-      timeDependent: Boolean(item?.timeDependent),
+      urgencyLevel: Math.max(0, Math.min(URGENCY_LOW, Number.isInteger(item?.urgencyLevel) ? item.urgencyLevel : 0)),
+      timingFlag: item?.timingFlag === 'T' || item?.timingFlag === 'D' ? item.timingFlag : (item?.timeDependent ? 'T' : null),
       createdAt: Number(item?.createdAt) || Date.now(),
       updatedAt: Number(item?.updatedAt) || Date.now(),
     };
@@ -677,7 +692,7 @@
     const completed = Boolean(item?.completed || completedAt || status === 'completed');
     const deleted = Boolean(item?.deleted || deletedAt || status === 'deleted');
     const urgencyLevelRaw = Number.isInteger(item?.urgencyLevel) ? item.urgencyLevel : Number.isInteger(item?.urgency) ? item.urgency : item?.urgent ? 1 : 0;
-    const urgencyLevel = Math.max(0, Math.min(2, urgencyLevelRaw));
+    const urgencyLevel = Math.max(0, Math.min(URGENCY_LOW, urgencyLevelRaw));
 
     const normalized = {
       text,
@@ -687,7 +702,7 @@
       completed,
       deleted,
       urgencyLevel,
-      timeDependent: Boolean(item?.timeDependent),
+      timingFlag: item?.timingFlag === 'T' || item?.timingFlag === 'D' ? item.timingFlag : (item?.timeDependent ? 'T' : null),
       updatedAt: Number(item?.updatedAt) || createdAt,
       completedAt: completed ? completedAt || createdAt : null,
       deletedAt: deleted ? deletedAt || createdAt : null,
@@ -963,9 +978,9 @@
 
 
     if (baseState.stateVersion < 6) {
-      baseState.generalActions = baseState.generalActions.map((item) => ({ ...item, timeDependent: Boolean(item.timeDependent) }));
-      baseState.schedulingActions = baseState.schedulingActions.map((item) => ({ ...item, timeDependent: Boolean(item.timeDependent) }));
-      baseState.personalActions = Array.isArray(baseState.personalActions) ? baseState.personalActions.map((item) => ({ ...item, timeDependent: Boolean(item.timeDependent) })) : [];
+      baseState.generalActions = baseState.generalActions.map((item) => ({ ...item, timingFlag: item?.timingFlag === 'T' || item?.timingFlag === 'D' ? item.timingFlag : (item?.timeDependent ? 'T' : null) }));
+      baseState.schedulingActions = baseState.schedulingActions.map((item) => ({ ...item, timingFlag: item?.timingFlag === 'T' || item?.timingFlag === 'D' ? item.timingFlag : (item?.timeDependent ? 'T' : null) }));
+      baseState.personalActions = Array.isArray(baseState.personalActions) ? baseState.personalActions.map((item) => ({ ...item, timingFlag: item?.timingFlag === 'T' || item?.timingFlag === 'D' ? item.timingFlag : (item?.timeDependent ? 'T' : null) })) : [];
       baseState.ui = {
         ...baseState.ui,
         collapsedCards: {
@@ -979,10 +994,32 @@
     if (baseState.stateVersion < 7) {
       baseState.bigTicketItems = baseState.bigTicketItems.map((item) => ({
         ...item,
-        urgencyLevel: Math.max(0, Math.min(2, Number.isInteger(item?.urgencyLevel) ? item.urgencyLevel : 0)),
-        timeDependent: Boolean(item?.timeDependent),
+        urgencyLevel: Math.max(0, Math.min(URGENCY_LOW, Number.isInteger(item?.urgencyLevel) ? item.urgencyLevel : 0)),
+        timingFlag: item?.timingFlag === 'T' || item?.timingFlag === 'D' ? item.timingFlag : (item?.timeDependent ? 'T' : null),
       }));
       baseState.stateVersion = 7;
+    }
+
+
+    if (baseState.stateVersion < 9) {
+      baseState.generalActions = baseState.generalActions.map((item) => ({
+        ...item,
+        urgencyLevel: Math.max(0, Math.min(URGENCY_LOW, Number.isInteger(item?.urgencyLevel) ? item.urgencyLevel : 0)),
+        timingFlag: item?.timingFlag === 'T' || item?.timingFlag === 'D' ? item.timingFlag : (item?.timeDependent ? 'T' : null),
+      }));
+      baseState.schedulingActions = baseState.schedulingActions.map((item) => ({
+        ...item,
+        urgencyLevel: Math.max(0, Math.min(URGENCY_LOW, Number.isInteger(item?.urgencyLevel) ? item.urgencyLevel : 0)),
+        timingFlag: item?.timingFlag === 'T' || item?.timingFlag === 'D' ? item.timingFlag : (item?.timeDependent ? 'T' : null),
+      }));
+      baseState.personalActions = Array.isArray(baseState.personalActions)
+        ? baseState.personalActions.map((item) => ({
+          ...item,
+          urgencyLevel: Math.max(0, Math.min(URGENCY_LOW, Number.isInteger(item?.urgencyLevel) ? item.urgencyLevel : 0)),
+          timingFlag: item?.timingFlag === 'T' || item?.timingFlag === 'D' ? item.timingFlag : (item?.timeDependent ? 'T' : null),
+        }))
+        : [];
+      baseState.stateVersion = 9;
     }
 
     if (baseState.stateVersion < LATEST_STATE_VERSION) {
@@ -1302,7 +1339,7 @@
   }
 
   function sortWithinUrgencyTier(a, b) {
-    return Number(b.timeDependent) - Number(a.timeDependent) || sortNewestFirst(a, b);
+    return sortNewestFirst(a, b);
   }
 
   function getOrderedActions(list) {
@@ -1310,9 +1347,10 @@
     const superUrgent = active.filter((i) => i.urgencyLevel === 2).sort(sortWithinUrgencyTier);
     const urgent = active.filter((i) => i.urgencyLevel === 1).sort(sortWithinUrgencyTier);
     const normal = active.filter((i) => i.urgencyLevel === 0).sort(sortWithinUrgencyTier);
+    const low = active.filter((i) => i.urgencyLevel === URGENCY_LOW).sort(sortWithinUrgencyTier);
     const completed = list.actions.filter((i) => !i.deleted && i.completed).sort((a, b) => (b.completedAt || 0) - (a.completedAt || 0));
     const deleted = list.actions.filter((i) => i.deleted).sort((a, b) => (b.deletedAt || 0) - (a.deletedAt || 0));
-    return [...superUrgent, ...urgent, ...normal, ...completed, ...deleted];
+    return [...superUrgent, ...urgent, ...normal, ...low, ...completed, ...deleted];
   }
 
   function updateRowTruncation(row) {
@@ -1323,11 +1361,27 @@
   }
 
   function getUrgencyLabel(action) {
-    return action.urgencyLevel === 2 ? 'Super urgent' : action.urgencyLevel === 1 ? 'Urgent' : 'None';
+    if (action.urgencyLevel === 2) return 'Super urgent';
+    if (action.urgencyLevel === 1) return 'Urgent';
+    if (action.urgencyLevel === URGENCY_LOW) return 'Low';
+    return 'None';
+  }
+
+  function getUrgencyButtonText(level) {
+    if (level === 2) return '!!';
+    if (level === URGENCY_LOW) return 'L';
+    return '!';
+  }
+
+  function cycleUrgencyLevel(level) {
+    if (level === 0) return 1;
+    if (level === 1) return 2;
+    if (level === 2) return URGENCY_LOW;
+    return 0;
   }
 
   function cycleUrgency(action) {
-    action.urgencyLevel = (action.urgencyLevel + 1) % 3;
+    action.urgencyLevel = cycleUrgencyLevel(action.urgencyLevel);
     action.updatedAt = Date.now();
   }
 
@@ -1335,15 +1389,31 @@
     modalUrgencyLabel.textContent = getUrgencyLabel(action);
     modalUrgencyBtn.classList.toggle('active', action.urgencyLevel === 1);
     modalUrgencyBtn.classList.toggle('super', action.urgencyLevel === 2);
-    modalUrgencyBtn.textContent = action.urgencyLevel === 2 ? '!!' : '!';
+    modalUrgencyBtn.classList.toggle('low', action.urgencyLevel === URGENCY_LOW);
+    modalUrgencyBtn.textContent = getUrgencyButtonText(action.urgencyLevel);
     modalUrgencyBtn.disabled = action.deleted;
+  }
+
+
+  function getTimingFlagLabel(timingFlag) {
+    return timingFlag === 'T' ? 'Time-dependent' : timingFlag === 'D' ? 'Delegated' : '';
+  }
+
+  function cycleTimingFlag(flag) {
+    if (!flag) return 'T';
+    if (flag === 'T') return 'D';
+    return null;
   }
 
   function updateModalTimeDependentUI(action) {
     if (!modalTimeDependentBtn || !modalTimeDependentLabel) return;
-    modalTimeDependentBtn.classList.toggle('active', Boolean(action.timeDependent));
+    const timingFlag = action.timingFlag || null;
+    modalTimeDependentBtn.classList.toggle('active', Boolean(timingFlag));
+    modalTimeDependentBtn.classList.toggle('delegated', timingFlag === 'D');
+    modalTimeDependentBtn.textContent = timingFlag || 'T';
     modalTimeDependentBtn.disabled = action.deleted;
-    modalTimeDependentLabel.hidden = !action.timeDependent;
+    modalTimeDependentLabel.textContent = getTimingFlagLabel(timingFlag);
+    modalTimeDependentLabel.hidden = !timingFlag;
   }
 
   function getSelectedPersonFilter() {
@@ -1473,7 +1543,7 @@
       if (action.deleted) li.classList.add('deleted');
       if (!action.completed && !action.deleted && action.urgencyLevel === 1) li.classList.add('urgent');
       if (!action.completed && !action.deleted && action.urgencyLevel === 2) li.classList.add('super-urgent');
-      if (!action.completed && !action.deleted && action.urgencyLevel === 0 && action.timeDependent) li.classList.add('time-dependent');
+      if (!action.completed && !action.deleted && action.urgencyLevel === URGENCY_LOW) li.classList.add('low-priority');
 
       const checkbox = document.createElement('input');
       checkbox.type = 'checkbox';
@@ -1492,6 +1562,14 @@
       const number = document.createElement('span');
       number.className = 'action-number';
       number.textContent = list.hideNumber ? '' : String(action.number);
+      const timingFlag = action.timingFlag || null;
+      if (!list.hideNumber && timingFlag) {
+        const timingMarker = document.createElement('span');
+        timingMarker.className = 'action-timing-marker';
+        timingMarker.textContent = timingFlag;
+        number.appendChild(document.createTextNode(' '));
+        number.appendChild(timingMarker);
+      }
       if (list.hideNumber) number.hidden = true;
 
       const textWrap = document.createElement('div');
@@ -1527,9 +1605,10 @@
       urgentBtn.type = 'button';
       urgentBtn.className = 'icon-btn urgent-btn';
       urgentBtn.disabled = action.deleted;
-      urgentBtn.textContent = action.urgencyLevel === 2 ? '!!' : '!';
+      urgentBtn.textContent = getUrgencyButtonText(action.urgencyLevel);
       urgentBtn.classList.toggle('active', action.urgencyLevel === 1);
       urgentBtn.classList.toggle('super', action.urgencyLevel === 2);
+      urgentBtn.classList.toggle('low', action.urgencyLevel === URGENCY_LOW);
       urgentBtn.addEventListener('click', (event) => {
         event.stopPropagation();
         cycleUrgency(action);
@@ -1541,12 +1620,13 @@
       timeDependentBtn.type = 'button';
       timeDependentBtn.className = 'icon-btn time-dependent-btn';
       timeDependentBtn.disabled = action.deleted;
-      timeDependentBtn.textContent = 'T';
-      timeDependentBtn.classList.toggle('active', Boolean(action.timeDependent));
+      timeDependentBtn.textContent = action.timingFlag || 'T';
+      timeDependentBtn.classList.toggle('active', Boolean(action.timingFlag));
+      timeDependentBtn.classList.toggle('delegated', action.timingFlag === 'D');
       timeDependentBtn.setAttribute('aria-label', 'Toggle time-dependent');
       timeDependentBtn.addEventListener('click', (event) => {
         event.stopPropagation();
-        action.timeDependent = !action.timeDependent;
+        action.timingFlag = cycleTimingFlag(action.timingFlag || null);
         action.updatedAt = Date.now();
         saveList(list);
         renderList(list);
@@ -1925,7 +2005,7 @@
       row.className = 'big-ticket-row';
       if (item.urgencyLevel === 1) row.classList.add('urgent');
       if (item.urgencyLevel === 2) row.classList.add('super-urgent');
-      if (item.urgencyLevel === 0 && item.timeDependent) row.classList.add('time-dependent');
+      if (item.urgencyLevel === URGENCY_LOW) row.classList.add('low-priority');
 
       const number = document.createElement('span');
       number.className = 'action-number';
@@ -1943,12 +2023,13 @@
       const urgentBtn = document.createElement('button');
       urgentBtn.type = 'button';
       urgentBtn.className = 'icon-btn urgent-btn';
-      urgentBtn.textContent = item.urgencyLevel === 2 ? '!!' : '!';
+      urgentBtn.textContent = getUrgencyButtonText(item.urgencyLevel);
       urgentBtn.classList.toggle('active', item.urgencyLevel === 1);
       urgentBtn.classList.toggle('super', item.urgencyLevel === 2);
+      urgentBtn.classList.toggle('low', item.urgencyLevel === URGENCY_LOW);
       urgentBtn.addEventListener('click', (event) => {
         event.stopPropagation();
-        item.urgencyLevel = (item.urgencyLevel + 1) % 3;
+        item.urgencyLevel = cycleUrgencyLevel(item.urgencyLevel);
         item.updatedAt = Date.now();
         saveBigTicketItems();
         renderBigTicketItems();
@@ -1957,12 +2038,13 @@
       const timeDependentBtn = document.createElement('button');
       timeDependentBtn.type = 'button';
       timeDependentBtn.className = 'icon-btn time-dependent-btn';
-      timeDependentBtn.textContent = 'T';
-      timeDependentBtn.classList.toggle('active', Boolean(item.timeDependent));
+      timeDependentBtn.textContent = item.timingFlag || 'T';
+      timeDependentBtn.classList.toggle('active', Boolean(item.timingFlag));
+      timeDependentBtn.classList.toggle('delegated', item.timingFlag === 'D');
       timeDependentBtn.setAttribute('aria-label', 'Toggle time-dependent');
       timeDependentBtn.addEventListener('click', (event) => {
         event.stopPropagation();
-        item.timeDependent = !item.timeDependent;
+        item.timingFlag = cycleTimingFlag(item.timingFlag || null);
         item.updatedAt = Date.now();
         saveBigTicketItems();
         renderBigTicketItems();
@@ -2145,7 +2227,7 @@
     renderCollapseAllButton();
   }
 
-  function addAction(list, rawHtml) {
+  function addAction(list, rawHtml, options = {}) {
     const html = sanitizeRichHtml(rawHtml);
     const text = htmlToPlainText(html);
     if (!text) return;
@@ -2158,8 +2240,8 @@
       updatedAt: now,
       completed: false,
       deleted: false,
-      urgencyLevel: 0,
-      timeDependent: false,
+      urgencyLevel: Math.max(0, Math.min(URGENCY_LOW, Number.isInteger(options.urgencyLevel) ? options.urgencyLevel : 0)),
+      timingFlag: options.timingFlag === 'T' || options.timingFlag === 'D' ? options.timingFlag : null,
       completedAt: null,
       deletedAt: null,
     };
@@ -2206,7 +2288,7 @@
     const text = htmlToPlainText(html);
     if (!text) return false;
     const now = Date.now();
-    bigTicket.items.unshift({ id: `ticket-${now}-${Math.random().toString(16).slice(2)}`, html, html_inline: richHtmlToInlineHtml(html), text, urgencyLevel: 0, timeDependent: false, createdAt: now, updatedAt: now });
+    bigTicket.items.unshift({ id: `ticket-${now}-${Math.random().toString(16).slice(2)}`, html, html_inline: richHtmlToInlineHtml(html), text, urgencyLevel: 0, timingFlag: null, createdAt: now, updatedAt: now });
     saveBigTicketItems();
     renderBigTicketItems();
     return true;
@@ -2271,6 +2353,7 @@
   }
 
   function closeGeneralNoteBigEdit() {
+    stopDictation();
     if (activeGeneralNoteBigEditDraft) {
       generalNoteBigEditTitleInput.value = activeGeneralNoteBigEditDraft.title;
       generalNoteBigEditDateInput.value = activeGeneralNoteBigEditDraft.date;
@@ -2402,9 +2485,9 @@
     const created = `Created: ${formatLocalDate(action.createdAt)}`;
     const completed = action.completed ? `Completed: ${formatLocalDate(action.completedAt)}` : null;
     const deleted = action.deleted ? `Deleted: ${formatLocalDate(action.deletedAt)}` : null;
-    const urgency = action.urgencyLevel === 2 ? 'Super urgent' : action.urgencyLevel === 1 ? 'Urgent' : null;
-    const timeDependent = action.timeDependent ? 'Time-dependent' : null;
-    return [deleted || completed || created, created, completed, deleted, urgency, timeDependent].filter(Boolean).join(' • ');
+    const urgency = getUrgencyLabel(action) !== 'None' ? getUrgencyLabel(action) : null;
+    const timing = getTimingFlagLabel(action.timingFlag || null) || null;
+    return [deleted || completed || created, created, completed, deleted, urgency, timing].filter(Boolean).join(' • ');
   }
 
   function findActionForList(list, actionKey) {
@@ -2454,6 +2537,7 @@
   }
 
   function closeModal(skipPersist = false) {
+    stopDictation();
     if (!skipPersist && activeModalContext) {
       persistModalChanges();
     }
@@ -2486,6 +2570,81 @@
     });
   }
 
+
+  function appendDictatedTextToTarget(target, text) {
+    if (!target || !text) return;
+    target.focus();
+    const content = `${text} `;
+    if (document.activeElement === target && typeof document.execCommand === 'function') {
+      document.execCommand('insertText', false, content);
+      return;
+    }
+    if (target.isContentEditable) {
+      target.innerHTML += `${escapeHtml(text)} `;
+    } else if ('value' in target) {
+      target.value = `${target.value || ''}${content}`;
+    }
+  }
+
+  function stopDictation() {
+    if (!dictationState.recognition) return;
+    dictationState.recognition.stop();
+  }
+
+  function updateDictationButtonState(button, listening) {
+    if (!button) return;
+    button.textContent = listening ? 'Stop' : 'Dictate';
+    button.classList.toggle('active', listening);
+  }
+
+  function startDictation(button, defaultTarget, fallbackTarget) {
+    const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!Recognition) {
+      showToast('Dictation not supported in this browser.', 'warning');
+      return;
+    }
+
+    if (dictationState.button === button && dictationState.recognition) {
+      stopDictation();
+      return;
+    }
+
+    stopDictation();
+
+    const recognition = new Recognition();
+    recognition.lang = 'en-GB';
+    recognition.continuous = true;
+    recognition.interimResults = false;
+
+    dictationState.recognition = recognition;
+    dictationState.button = button;
+    dictationState.defaultTarget = defaultTarget;
+    dictationState.fallbackTarget = fallbackTarget || defaultTarget;
+    updateDictationButtonState(button, true);
+
+    recognition.onresult = (event) => {
+      const idx = event.resultIndex;
+      const transcript = event.results[idx] && event.results[idx][0] ? event.results[idx][0].transcript : '';
+      const active = document.activeElement;
+      const target = active && active.isContentEditable ? active : dictationState.fallbackTarget;
+      appendDictatedTextToTarget(target, transcript.trim());
+    };
+
+    recognition.onerror = () => {
+      updateDictationButtonState(dictationState.button, false);
+      dictationState.recognition = null;
+      dictationState.button = null;
+    };
+
+    recognition.onend = () => {
+      updateDictationButtonState(dictationState.button, false);
+      dictationState.recognition = null;
+      dictationState.button = null;
+    };
+
+    recognition.start();
+  }
+
   function bindRtfToolbar(toolbarEl) {
     toolbarEl.addEventListener('click', (event) => {
       const button = event.target.closest('button[data-command]');
@@ -2496,11 +2655,42 @@
     });
   }
 
+
+  function getCreationState(list) {
+    if (list.key === GENERAL_STORAGE_KEY) return creationState.general;
+    if (list.key === SCHEDULING_STORAGE_KEY) return creationState.scheduling;
+    return creationDefaults;
+  }
+
+  function renderCreationControls(list) {
+    const state = getCreationState(list);
+    if (list.createUrgencyBtn) {
+      list.createUrgencyBtn.textContent = getUrgencyButtonText(state.urgencyLevel);
+      list.createUrgencyBtn.classList.toggle('active', state.urgencyLevel === 1);
+      list.createUrgencyBtn.classList.toggle('super', state.urgencyLevel === 2);
+      list.createUrgencyBtn.classList.toggle('low', state.urgencyLevel === URGENCY_LOW);
+    }
+    if (list.createTimingBtn) {
+      list.createTimingBtn.textContent = state.timingFlag || 'T';
+      list.createTimingBtn.classList.toggle('active', Boolean(state.timingFlag));
+      list.createTimingBtn.classList.toggle('delegated', state.timingFlag === 'D');
+    }
+  }
+
+  function resetCreationState(list) {
+    const state = getCreationState(list);
+    state.urgencyLevel = 0;
+    state.timingFlag = null;
+    renderCreationControls(list);
+  }
+
   function bindListEvents(list) {
     list.form.addEventListener('submit', (event) => {
       event.preventDefault();
-      addAction(list, list.input.innerHTML);
+      const state = getCreationState(list);
+      addAction(list, list.input.innerHTML, { urgencyLevel: state.urgencyLevel, timingFlag: state.timingFlag });
       list.input.innerHTML = '';
+      resetCreationState(list);
       list.input.focus();
     });
 
@@ -2510,6 +2700,24 @@
         list.form.requestSubmit();
       }
     });
+
+    if (list.createUrgencyBtn) {
+      list.createUrgencyBtn.addEventListener('click', () => {
+        const state = getCreationState(list);
+        state.urgencyLevel = cycleUrgencyLevel(state.urgencyLevel);
+        renderCreationControls(list);
+      });
+    }
+
+    if (list.createTimingBtn) {
+      list.createTimingBtn.addEventListener('click', () => {
+        const state = getCreationState(list);
+        state.timingFlag = cycleTimingFlag(state.timingFlag);
+        renderCreationControls(list);
+      });
+    }
+
+    renderCreationControls(list);
 
     list.clearBtn.addEventListener('click', () => {
       list.actions = list.actions.filter((item) => {
@@ -2549,6 +2757,7 @@
   }
 
   function closeMeetingBigEdit() {
+    stopDictation();
     if (activeMeetingBigEditDraft) {
       meetingBigEditTitleInput.value = activeMeetingBigEditDraft.title;
       meetingBigEditDateInput.value = activeMeetingBigEditDraft.date;
@@ -3087,13 +3296,26 @@
     modalTimeDependentBtn.addEventListener('click', () => {
       const action = getActiveModalAction();
       if (!action || !activeModalContext || action.deleted) return;
-      action.timeDependent = !action.timeDependent;
+      action.timingFlag = cycleTimingFlag(action.timingFlag || null);
       action.updatedAt = Date.now();
       saveList(activeModalContext.list);
       modalStatus.textContent = modalStatusText(action);
       updateModalTimeDependentUI(action);
       renderList(activeModalContext.list);
     });
+  }
+
+
+  if (modalDictateBtn) {
+    modalDictateBtn.addEventListener('click', () => startDictation(modalDictateBtn, modalTextInput, modalTextInput));
+  }
+
+  if (meetingBigEditDictateBtn) {
+    meetingBigEditDictateBtn.addEventListener('click', () => startDictation(meetingBigEditDictateBtn, meetingBigEditNotesEditor, meetingBigEditNotesEditor));
+  }
+
+  if (generalNoteBigEditDictateBtn) {
+    generalNoteBigEditDictateBtn.addEventListener('click', () => startDictation(generalNoteBigEditDictateBtn, generalNoteBigEditEditor, generalNoteBigEditEditor));
   }
 
   meetingBigEditForm.addEventListener('submit', (event) => {
@@ -3120,6 +3342,7 @@
   generalNoteBigEditBackdrop.addEventListener('click', closeGeneralNoteBigEdit);
 
   modalCloseBtn.addEventListener('click', () => closeModal());
+  if (modalCancelBtn) modalCancelBtn.addEventListener('click', () => closeModal());
 
   settingsBtn.addEventListener('click', openSettingsModal);
   cloud.collapseAllBtn.addEventListener('click', toggleAllCardsCollapse);

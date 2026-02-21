@@ -283,6 +283,8 @@ body { margin: 0; font-family: Inter, -apple-system, BlinkMacSystemFont, 'Segoe 
 .action-input-buttons { display: flex; align-items: stretch; gap: 0.35rem; }
 .action-input-buttons > button { min-width: 2rem; padding: 0.25rem 0.5rem; }
 .action-input-buttons > .subtle-button { margin-left: 0; }
+.action-input-buttons > .icon-btn { min-width: 2rem; padding: 0.25rem 0.45rem; }
+.action-format-filter-row { margin-top: 0.25rem; }
 
 .action-format-filter-row { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; min-width: 0; flex-wrap: nowrap; }
 .toolbar-filter-group { display: inline-flex; align-items: center; justify-content: flex-end; gap: 0.45rem; margin-left: auto; flex-wrap: wrap; }
@@ -311,6 +313,11 @@ button:focus-visible, textarea:focus-visible, input:focus-visible, [contentedita
 .action-item.time-dependent { border-left: 3px solid #f59e0b; padding-left: 0.4rem; background: #fef3c7; }
 .action-text.super-urgent-text { font-weight: 700; }
 .urgent-btn.super { border-color: #7f1d1d; background: #7f1d1d; color: #fff; }
+
+.action-item.low-priority, .big-ticket-row.low-priority { border-left: 3px solid #94a3b8; padding-left: 0.4rem; background: #f8fafc; }
+.action-timing-marker { display: inline-block; font-size: 0.66rem; letter-spacing: 0.06em; text-transform: uppercase; color: #64748b; border: 1px solid #cbd5e1; border-radius: 999px; padding: 0.05rem 0.28rem; vertical-align: middle; }
+.urgent-btn.low { border-color: #94a3b8; background: #f1f5f9; color: #334155; font-size: 0.72rem; letter-spacing: 0.06em; text-transform: uppercase; font-weight: 600; }
+.time-dependent-btn.delegated { border-color: #0284c7; background: #e0f2fe; color: #0c4a6e; }
 .action-item input[type='checkbox'] { width: 1rem; height: 1rem; margin: 0; }
 .action-number { font-weight: 700; font-size: 0.9rem; color: #1f2937; min-width: 2.25rem; }
 .action-text-wrap { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; min-width: 0; column-gap: 0.25rem; }

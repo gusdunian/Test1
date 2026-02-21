@@ -63,6 +63,8 @@
                     <div class="action-input-buttons">
                       <button type="submit" aria-label="Add action">+</button>
                       <button id="general-clear-completed-btn" type="button" class="subtle-button">CC</button>
+                      <button id="general-create-urgency-btn" type="button" class="icon-btn urgent-btn" aria-label="Set new action priority">!</button>
+                      <button id="general-create-timing-btn" type="button" class="icon-btn time-dependent-btn" aria-label="Set new action timing flag">T</button>
                     </div>
                   </div>
                   <div class="action-format-filter-row">
@@ -198,6 +200,8 @@
                     <div class="action-input-buttons">
                       <button type="submit" aria-label="Add action">+</button>
                       <button id="scheduling-clear-completed-btn" type="button" class="subtle-button">CC</button>
+                      <button id="scheduling-create-urgency-btn" type="button" class="icon-btn urgent-btn" aria-label="Set new scheduling action priority">!</button>
+                      <button id="scheduling-create-timing-btn" type="button" class="icon-btn time-dependent-btn" aria-label="Set new scheduling action timing flag">T</button>
                     </div>
                   </div>
                   <div class="action-format-filter-row">
@@ -361,6 +365,8 @@
           <div id="modal-text-input" class="modal-editor" contenteditable="true" role="textbox" aria-multiline="true"></div>
         </div>
         <div class="modal-footer">
+          <button id="modal-dictate-btn" type="button" class="subtle-button">Dictate</button>
+          <button id="modal-cancel-btn" type="button" class="subtle-button">Cancel</button>
           <button id="modal-save-btn" type="button" class="subtle-button">Save</button>
         </div>
       </div>
@@ -403,8 +409,9 @@
           </div>
 
           <div class="modal-footer">
-            <button id="meeting-big-edit-cancel" type="button" class="subtle-button">Cancel</button>
             <button type="submit" class="subtle-button">Save</button>
+            <button id="meeting-big-edit-cancel" type="button" class="subtle-button">Cancel</button>
+            <button id="meeting-big-edit-dictate" type="button" class="subtle-button">Dictate</button>
           </div>
         </form>
       </div>
@@ -450,8 +457,9 @@
             <button type="button" data-command="insertOrderedList" aria-label="Numbered list">1.</button>
           </div>
           <div class="modal-footer">
-            <button id="general-note-big-edit-cancel" type="button" class="subtle-button">Cancel</button>
             <button type="submit" class="subtle-button">Save</button>
+            <button id="general-note-big-edit-cancel" type="button" class="subtle-button">Cancel</button>
+            <button id="general-note-big-edit-dictate" type="button" class="subtle-button">Dictate</button>
           </div>
         </form>
       </div>
