@@ -65,20 +65,40 @@
                       <button id="general-clear-completed-btn" type="button" class="subtle-button">CC</button>
                     </div>
                   </div>
-                  <div class="person-filter-row">
-                    <label for="general-person-filter">Person</label>
-                    <select id="general-person-filter" class="person-filter-select">
-                      <option value="All">All</option>
-                    </select>
-                    <span id="general-person-filter-count" class="person-filter-count" aria-live="polite"></span>
+                  <div class="action-format-filter-row">
+                    <div class="rtf-toolbar" data-editor-target="general-action-input" role="toolbar" aria-label="General action formatting">
+                      <button type="button" data-command="bold" aria-label="Bold">B</button>
+                      <button type="button" data-command="italic" aria-label="Italic">I</button>
+                      <button type="button" data-command="underline" aria-label="Underline">U</button>
+                      <button type="button" data-command="insertUnorderedList" aria-label="Bulleted list">•</button>
+                      <button type="button" data-command="insertOrderedList" aria-label="Numbered list">1.</button>
+                    </div>
+                    <div class="toolbar-filter-group">
+                      <div class="inline-filter-control">
+                        <label for="general-tag-filter" class="filter-icon-label" aria-label="Tag filter">
+                          <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                            <path d="M20 13 11 4H4v7l9 9z" />
+                            <circle cx="7.5" cy="7.5" r="1" />
+                          </svg>
+                        </label>
+                        <select id="general-tag-filter" class="person-filter-select">
+                          <option value="All">All</option>
+                        </select>
+                      </div>
+                      <div class="inline-filter-control">
+                        <label for="general-person-filter" class="filter-icon-label" aria-label="Person filter">
+                          <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                            <circle cx="12" cy="8" r="3.5" />
+                            <path d="M5 20c.8-3.4 3.8-5.5 7-5.5s6.2 2.1 7 5.5" />
+                          </svg>
+                        </label>
+                        <select id="general-person-filter" class="person-filter-select">
+                          <option value="All">All</option>
+                        </select>
+                      </div>
+                    </div>
                   </div>
-                  <div class="rtf-toolbar" data-editor-target="general-action-input" role="toolbar" aria-label="General action formatting">
-                    <button type="button" data-command="bold" aria-label="Bold">B</button>
-                    <button type="button" data-command="italic" aria-label="Italic">I</button>
-                    <button type="button" data-command="underline" aria-label="Underline">U</button>
-                    <button type="button" data-command="insertUnorderedList" aria-label="Bulleted list">•</button>
-                    <button type="button" data-command="insertOrderedList" aria-label="Numbered list">1.</button>
-                  </div>
+                  <span id="general-person-filter-count" class="person-filter-count" aria-live="polite"></span>
                 </form>
               </div>
               <ul id="general-action-list" class="action-list" aria-label="General action items"></ul>
@@ -180,20 +200,40 @@
                       <button id="scheduling-clear-completed-btn" type="button" class="subtle-button">CC</button>
                     </div>
                   </div>
-                  <div class="person-filter-row">
-                    <label for="scheduling-person-filter">Person</label>
-                    <select id="scheduling-person-filter" class="person-filter-select">
-                      <option value="All">All</option>
-                    </select>
-                    <span id="scheduling-person-filter-count" class="person-filter-count" aria-live="polite"></span>
+                  <div class="action-format-filter-row">
+                    <div class="rtf-toolbar" data-editor-target="scheduling-action-input" role="toolbar" aria-label="Scheduling action formatting">
+                      <button type="button" data-command="bold" aria-label="Bold">B</button>
+                      <button type="button" data-command="italic" aria-label="Italic">I</button>
+                      <button type="button" data-command="underline" aria-label="Underline">U</button>
+                      <button type="button" data-command="insertUnorderedList" aria-label="Bulleted list">•</button>
+                      <button type="button" data-command="insertOrderedList" aria-label="Numbered list">1.</button>
+                    </div>
+                    <div class="toolbar-filter-group">
+                      <div class="inline-filter-control">
+                        <label for="scheduling-tag-filter" class="filter-icon-label" aria-label="Tag filter">
+                          <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                            <path d="M20 13 11 4H4v7l9 9z" />
+                            <circle cx="7.5" cy="7.5" r="1" />
+                          </svg>
+                        </label>
+                        <select id="scheduling-tag-filter" class="person-filter-select">
+                          <option value="All">All</option>
+                        </select>
+                      </div>
+                      <div class="inline-filter-control">
+                        <label for="scheduling-person-filter" class="filter-icon-label" aria-label="Person filter">
+                          <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                            <circle cx="12" cy="8" r="3.5" />
+                            <path d="M5 20c.8-3.4 3.8-5.5 7-5.5s6.2 2.1 7 5.5" />
+                          </svg>
+                        </label>
+                        <select id="scheduling-person-filter" class="person-filter-select">
+                          <option value="All">All</option>
+                        </select>
+                      </div>
+                    </div>
                   </div>
-                  <div class="rtf-toolbar" data-editor-target="scheduling-action-input" role="toolbar" aria-label="Scheduling action formatting">
-                    <button type="button" data-command="bold" aria-label="Bold">B</button>
-                    <button type="button" data-command="italic" aria-label="Italic">I</button>
-                    <button type="button" data-command="underline" aria-label="Underline">U</button>
-                    <button type="button" data-command="insertUnorderedList" aria-label="Bulleted list">•</button>
-                    <button type="button" data-command="insertOrderedList" aria-label="Numbered list">1.</button>
-                  </div>
+                  <span id="scheduling-person-filter-count" class="person-filter-count" aria-live="polite"></span>
                 </form>
               </div>
               <ul id="scheduling-action-list" class="action-list" aria-label="Scheduling action items"></ul>
