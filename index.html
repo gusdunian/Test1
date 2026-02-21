@@ -40,7 +40,8 @@
     <main id="main-content" class="container" aria-live="polite">
       <p id="signed-out-message" class="signed-out-message" hidden>Sign in to view your dashboard.</p>
       <section class="columns" aria-label="Action columns">
-        <article class="column card collapsible-card" data-card-id="generalActions" aria-labelledby="general-actions-heading">
+        <div class="column-stack">
+          <article class="column card collapsible-card" data-card-id="generalActions" aria-labelledby="general-actions-heading">
           <div class="column-header">
             <h2 id="general-actions-heading">
               <svg class="header-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
@@ -75,7 +76,43 @@
               </div>
               <ul id="general-action-list" class="action-list" aria-label="General action items"></ul>
             </div>
-        </article>
+          </article>
+
+          <article class="column card collapsible-card" data-card-id="personalActions" aria-labelledby="personal-actions-heading">
+            <div class="column-header">
+              <h2 id="personal-actions-heading">
+                <svg class="header-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                  <circle cx="12" cy="8" r="3.5" />
+                  <path d="M5 20c.8-3.4 3.8-5.5 7-5.5s6.2 2.1 7 5.5" />
+                </svg>
+                <span>Personal actions</span>
+              </h2>
+              <button type="button" class="card-toggle" data-card-toggle="personalActions" aria-expanded="true">▾</button>
+            </div>
+            <div class="card-body" data-card-body="personalActions">
+              <div class="action-toolbar">
+                <form id="personal-add-action-form" class="add-action-form aligned-action-form" autocomplete="off">
+                  <label class="visually-hidden" for="personal-action-input">New personal action description</label>
+                  <div class="action-input-main-row">
+                    <div id="personal-action-input" class="compact-rich-editor" contenteditable="true" role="textbox" aria-multiline="true" data-placeholder="Enter a personal action"></div>
+                    <div class="action-input-buttons">
+                      <button type="submit" aria-label="Add action">+</button>
+                      <button id="personal-clear-completed-btn" type="button" class="subtle-button">CC</button>
+                    </div>
+                  </div>
+                  <div class="rtf-toolbar" data-editor-target="personal-action-input" role="toolbar" aria-label="Personal action formatting">
+                    <button type="button" data-command="bold" aria-label="Bold">B</button>
+                    <button type="button" data-command="italic" aria-label="Italic">I</button>
+                    <button type="button" data-command="underline" aria-label="Underline">U</button>
+                    <button type="button" data-command="insertUnorderedList" aria-label="Bulleted list">•</button>
+                    <button type="button" data-command="insertOrderedList" aria-label="Numbered list">1.</button>
+                  </div>
+                </form>
+              </div>
+              <ul id="personal-action-list" class="action-list" aria-label="Personal action items"></ul>
+            </div>
+          </article>
+        </div>
 
         <div class="column-stack">
           <article class="column card collapsible-card" data-card-id="bigTicket" aria-labelledby="big-ticket-heading">
@@ -254,6 +291,8 @@
         <div class="modal-toolbar">
           <button id="modal-urgency-btn" type="button" class="icon-btn urgent-btn">!</button>
           <span id="modal-urgency-label" class="modal-urgency-label">None</span>
+          <button id="modal-time-dependent-btn" type="button" class="icon-btn time-dependent-btn" aria-label="Toggle time-dependent">T</button>
+          <span id="modal-time-dependent-label" class="modal-urgency-label">Time-dependent</span>
           <div class="rtf-toolbar" data-editor-target="modal-text-input" role="toolbar" aria-label="Action formatting">
             <button type="button" data-command="bold" aria-label="Bold">B</button>
             <button type="button" data-command="italic" aria-label="Italic">I</button>
