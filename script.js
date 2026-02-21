@@ -16,7 +16,7 @@
   const CLOUD_LAST_SYNCED_AT_KEY = 'lastSyncedAt';
   const CLOUD_LAST_UPDATED_AT_KEY = 'lastCloudUpdatedAt';
   const LOCAL_STATE_VERSION_KEY = 'dashboardStateVersion';
-  const LATEST_STATE_VERSION = 3;
+  const LATEST_STATE_VERSION = 4;
   const AUTOSYNC_DEBOUNCE_MS = 2000;
 
   const defaultTheme = {
@@ -26,6 +26,41 @@
     cardHeaderFg: '#ffffff',
     cardBg: '#fbfcfe',
     cardFg: '#111827',
+  };
+
+  const THEMES = {
+    Dark: {
+      bannerBg: '#0f172a',
+      pageBg: '#111827',
+      cardHeaderBg: '#1f2937',
+      cardHeaderFg: '#f8fafc',
+      cardBg: '#1e293b',
+      cardFg: '#e5e7eb',
+    },
+    Bright: {
+      bannerBg: '#2563eb',
+      pageBg: '#f8fafc',
+      cardHeaderBg: '#1d4ed8',
+      cardHeaderFg: '#ffffff',
+      cardBg: '#ffffff',
+      cardFg: '#0f172a',
+    },
+    Pastel: {
+      bannerBg: '#9f7aea',
+      pageBg: '#fdf2f8',
+      cardHeaderBg: '#c4b5fd',
+      cardHeaderFg: '#312e81',
+      cardBg: '#fef9c3',
+      cardFg: '#3f3f46',
+    },
+    Colourful: {
+      bannerBg: '#ea580c',
+      pageBg: '#eff6ff',
+      cardHeaderBg: '#059669',
+      cardHeaderFg: '#ecfeff',
+      cardBg: '#fffbeb',
+      cardFg: '#1f2937',
+    },
   };
 
   const collapsedCardsDefault = {
@@ -80,6 +115,7 @@
   const settingsModalClose = document.getElementById('settings-modal-close');
   const settingsForm = document.getElementById('settings-form');
   const settingsCancelBtn = document.getElementById('settings-cancel-btn');
+  const themePresetSelect = document.getElementById('theme-preset-select');
   const themeBannerBgInput = document.getElementById('theme-banner-bg');
   const themePageBgInput = document.getElementById('theme-page-bg');
   const themeCardHeaderBgInput = document.getElementById('theme-card-header-bg');
@@ -126,7 +162,7 @@
   const uiState = {
     collapsedCards: { ...collapsedCardsDefault },
     collapsedGeneralNotesMonths: {},
-    theme: { ...defaultTheme },
+    theme: { presetName: 'Bright', vars: { ...defaultTheme } },
   };
 
   const appState = {
@@ -136,7 +172,7 @@
     meetingNotes: [],
     bigTicketItems: [],
     generalNotes: [],
-    ui: { collapsedCards: { ...collapsedCardsDefault }, collapsedGeneralNotesMonths: {}, theme: { ...defaultTheme } },
+    ui: { collapsedCards: { ...collapsedCardsDefault }, collapsedGeneralNotesMonths: {}, theme: { presetName: 'Bright', vars: { ...defaultTheme } } },
     meetingNotesUIState: { collapsedMonths: {}, collapsedWeeks: {} },
     nextActionNumber: DEFAULT_NEXT_NUMBER,
   };
@@ -194,6 +230,9 @@
   let autosyncTimer = null;
   let autosyncPending = false;
   let autosyncInFlight = false;
+  let settingsThemeDraft = null;
+  let settingsThemeSavedSnapshot = null;
+  let suppressThemePresetSync = false;
 
   function escapeHtml(text) {
     return String(text || '')
@@ -249,6 +288,61 @@
     return (container.textContent || '').replace(/\s+/g, ' ').trim();
   }
 
+  function richHtmlToInlineHtml(html) {
+    const source = sanitizeRichHtml(html || '');
+    const container = document.createElement('div');
+    container.innerHTML = source;
+
+    function nodeToInline(node) {
+      if (node.nodeType === Node.TEXT_NODE) {
+        return node.textContent || '';
+      }
+      if (node.nodeType !== Node.ELEMENT_NODE) {
+        return '';
+      }
+      const tag = node.tagName.toUpperCase();
+      if (tag === 'BR') return ' ';
+      if (tag === 'P') {
+        return Array.from(node.childNodes).map(nodeToInline).join(' ').trim();
+      }
+      if (tag === 'UL' || tag === 'OL') {
+        const items = Array.from(node.children)
+          .filter((child) => child.tagName && child.tagName.toUpperCase() === 'LI')
+          .map((li) => `• ${Array.from(li.childNodes).map(nodeToInline).join(' ').replace(/\s+/g, ' ').trim()}`)
+          .filter(Boolean);
+        return items.join('; ');
+      }
+      if (tag === 'LI') {
+        return Array.from(node.childNodes).map(nodeToInline).join(' ').trim();
+      }
+      if (['B', 'STRONG', 'I', 'EM', 'U'].includes(tag)) {
+        const content = Array.from(node.childNodes).map(nodeToInline).join(' ').replace(/\s+/g, ' ').trim();
+        return content ? `<${tag.toLowerCase()}>${content}</${tag.toLowerCase()}>` : '';
+      }
+      return Array.from(node.childNodes).map(nodeToInline).join(' ');
+    }
+
+    const inline = Array.from(container.childNodes).map(nodeToInline).join(' ').replace(/\s+/g, ' ').trim();
+    return inline || htmlToPlainText(source);
+  }
+
+  function resolveThemePresetName(themeVars) {
+    return Object.entries(THEMES).find(([, vars]) => {
+      const normalized = normalizeTheme(vars);
+      return Object.keys(normalized).every((key) => normalized[key] === themeVars[key]);
+    })?.[0] || 'Custom';
+  }
+
+  function normalizeThemeState(themeLike) {
+    const source = themeLike && typeof themeLike === 'object' ? themeLike : {};
+    const varsSource = source.vars && typeof source.vars === 'object' ? source.vars : source;
+    const vars = normalizeTheme(varsSource);
+    const presetName = ['Dark', 'Bright', 'Pastel', 'Colourful', 'Custom'].includes(source.presetName)
+      ? source.presetName
+      : resolveThemePresetName(vars);
+    return { presetName, vars };
+  }
+
   function ensureActionRichContent(action) {
     if (!action) {
       return;
@@ -257,6 +351,7 @@
       action.html = textToRichHtml(action.text);
     }
     action.html = sanitizeRichHtml(action.html || textToRichHtml(action.text || '')) || textToRichHtml(action.text || '');
+    action.html_inline = richHtmlToInlineHtml(action.html);
     action.text = htmlToPlainText(action.html);
   }
 
@@ -278,6 +373,7 @@
     return {
       id: typeof item?.id === 'string' && item.id ? item.id : `ticket-${Date.now()}-${Math.random().toString(16).slice(2)}`,
       html,
+      html_inline: richHtmlToInlineHtml(typeof item?.html_inline === 'string' ? item.html_inline : html),
       text,
       completed: Boolean(item?.completed),
       createdAt: Number(item?.createdAt) || Date.now(),
@@ -296,6 +392,7 @@
       date,
       title,
       html,
+      html_inline: richHtmlToInlineHtml(typeof item?.html_inline === 'string' ? item.html_inline : html),
       text,
       createdAt: Number(item?.createdAt) || Date.now(),
       updatedAt: Number(item?.updatedAt) || Date.now(),
@@ -387,6 +484,7 @@
       number,
       text,
       html,
+      html_inline: richHtmlToInlineHtml(html),
       createdAt,
       completed,
       deleted,
@@ -536,9 +634,9 @@
     uiState.collapsedGeneralNotesMonths = parsed?.collapsedGeneralNotesMonths && typeof parsed.collapsedGeneralNotesMonths === 'object'
       ? parsed.collapsedGeneralNotesMonths
       : {};
-    uiState.theme = normalizeTheme(parsed?.theme);
+    uiState.theme = normalizeThemeState(parsed?.theme);
     generalNotes.uiState.collapsedMonths = uiState.collapsedGeneralNotesMonths;
-    applyTheme(uiState.theme);
+    applyTheme(uiState.theme.vars);
   }
 
   function migrateLegacyGeneralData() {
@@ -608,9 +706,18 @@
       baseState.ui = {
         ...baseState.ui,
         collapsedGeneralNotesMonths: baseState.ui.collapsedGeneralNotesMonths && typeof baseState.ui.collapsedGeneralNotesMonths === 'object' ? baseState.ui.collapsedGeneralNotesMonths : {},
-        theme: normalizeTheme(baseState.ui.theme),
+        theme: normalizeThemeState(baseState.ui.theme),
       };
       baseState.stateVersion = 3;
+    }
+
+    if (baseState.stateVersion < 4) {
+      baseState.generalActions.forEach(ensureActionRichContent);
+      baseState.schedulingActions.forEach(ensureActionRichContent);
+      baseState.bigTicketItems = baseState.bigTicketItems.map(normalizeBigTicketItem).filter(Boolean);
+      baseState.generalNotes = baseState.generalNotes.map(normalizeGeneralNote).filter(Boolean);
+      baseState.ui = { ...baseState.ui, theme: normalizeThemeState(baseState.ui.theme) };
+      baseState.stateVersion = 4;
     }
 
     if (baseState.stateVersion < LATEST_STATE_VERSION) {
@@ -623,7 +730,7 @@
         ...(baseState.ui.collapsedCards && typeof baseState.ui.collapsedCards === 'object' ? baseState.ui.collapsedCards : {}),
       },
       collapsedGeneralNotesMonths: baseState.ui.collapsedGeneralNotesMonths && typeof baseState.ui.collapsedGeneralNotesMonths === 'object' ? baseState.ui.collapsedGeneralNotesMonths : {},
-      theme: normalizeTheme(baseState.ui.theme),
+      theme: normalizeThemeState(baseState.ui.theme),
     };
 
     const highest = Math.max(DEFAULT_NEXT_NUMBER - 1, ...baseState.generalActions.map((i) => i.number), ...baseState.schedulingActions.map((i) => i.number));
@@ -853,7 +960,7 @@
       meetingNotes: [],
       bigTicketItems: [],
       generalNotes: [],
-      ui: { collapsedCards: { ...collapsedCardsDefault }, collapsedGeneralNotesMonths: {}, theme: { ...defaultTheme } },
+      ui: { collapsedCards: { ...collapsedCardsDefault }, collapsedGeneralNotesMonths: {}, theme: { presetName: 'Bright', vars: { ...defaultTheme } } },
       meetingNotesUIState: { collapsedMonths: {}, collapsedWeeks: {} },
       nextActionNumber: DEFAULT_NEXT_NUMBER,
     });
@@ -973,7 +1080,7 @@
 
       const text = document.createElement('span');
       text.className = 'action-text';
-      text.textContent = action.text;
+      text.innerHTML = action.html_inline || escapeHtml(action.text);
       if (action.urgencyLevel === 2 && !action.completed && !action.deleted) text.classList.add('super-urgent-text');
       textWrap.appendChild(text);
 
@@ -1348,7 +1455,7 @@
       const summary = document.createElement('button');
       summary.type = 'button';
       summary.className = 'big-ticket-summary';
-      summary.textContent = item.text;
+      summary.innerHTML = item.html_inline || escapeHtml(item.text);
       summary.addEventListener('click', () => openBigTicketModal(item.id));
 
       const del = document.createElement('button');
@@ -1450,7 +1557,7 @@
             controls.append(save,cancel);
             form.append(d,t,toolbar,editor,controls);
             bindRtfToolbar(toolbar); bindEditorShortcuts(editor);
-            form.addEventListener('submit',(e)=>{e.preventDefault(); const html=sanitizeRichHtml(editor.innerHTML); const text=htmlToPlainText(html); const title=t.value.trim(); if(!title||!d.value||!text)return; note.date=d.value; note.title=title; note.html=html; note.text=text; note.updatedAt=Date.now(); saveGeneralNotes(); generalNotes.editingId=null; renderGeneralNotes();});
+            form.addEventListener('submit',(e)=>{e.preventDefault(); const html=sanitizeRichHtml(editor.innerHTML); const text=htmlToPlainText(html); const title=t.value.trim(); if(!title||!d.value||!text)return; note.date=d.value; note.title=title; note.html=html; note.text=text; note.html_inline=richHtmlToInlineHtml(html); note.updatedAt=Date.now(); saveGeneralNotes(); generalNotes.editingId=null; renderGeneralNotes();});
             detail.appendChild(form);
           } else {
             const notes = document.createElement('div'); notes.className = 'meeting-notes-rendered'; notes.innerHTML = note.html;
@@ -1498,6 +1605,7 @@
       number: nextActionNumber,
       text,
       html,
+      html_inline: richHtmlToInlineHtml(html),
       createdAt: Date.now(),
       updatedAt: Date.now(),
       completed: false,
@@ -1541,7 +1649,7 @@
     const text = htmlToPlainText(html);
     if (!text) return false;
     const now = Date.now();
-    bigTicket.items.unshift({ id: `ticket-${now}-${Math.random().toString(16).slice(2)}`, html, text, completed: false, createdAt: now, updatedAt: now });
+    bigTicket.items.unshift({ id: `ticket-${now}-${Math.random().toString(16).slice(2)}`, html, html_inline: richHtmlToInlineHtml(html), text, completed: false, createdAt: now, updatedAt: now });
     saveBigTicketItems();
     renderBigTicketItems();
     return true;
@@ -1564,6 +1672,7 @@
     if (!text) return false;
     item.html = html;
     item.text = text;
+    item.html_inline = richHtmlToInlineHtml(html);
     item.updatedAt = Date.now();
     saveBigTicketItems();
     renderBigTicketItems();
@@ -1582,7 +1691,7 @@
     const text = htmlToPlainText(html);
     if (!dateRaw || !title || !text) return false;
     const now = Date.now();
-    generalNotes.items.push({ id: `gn-${now}-${Math.random().toString(16).slice(2)}`, date: dateRaw, title, html, text, createdAt: now, updatedAt: now });
+    generalNotes.items.push({ id: `gn-${now}-${Math.random().toString(16).slice(2)}`, date: dateRaw, title, html, html_inline: richHtmlToInlineHtml(html), text, createdAt: now, updatedAt: now });
     saveGeneralNotes();
     renderGeneralNotes();
     activeGeneralNoteBigEditDraft = null;
@@ -1627,6 +1736,7 @@
     item.date = date;
     item.html = html;
     item.text = text;
+    item.html_inline = richHtmlToInlineHtml(html);
     item.updatedAt = Date.now();
     saveGeneralNotes();
     renderGeneralNotes();
@@ -1635,16 +1745,20 @@
 
 
   function fillSettingsForm(themeLike) {
-    const theme = normalizeTheme(themeLike || uiState.theme);
+    const themeState = normalizeThemeState(themeLike || uiState.theme);
+    const theme = themeState.vars;
+    suppressThemePresetSync = true;
+    themePresetSelect.value = themeState.presetName;
     themeBannerBgInput.value = theme.bannerBg;
     themePageBgInput.value = theme.pageBg;
     themeCardHeaderBgInput.value = theme.cardHeaderBg;
     themeCardHeaderFgInput.value = theme.cardHeaderFg;
     themeCardBgInput.value = theme.cardBg;
     themeCardFgInput.value = theme.cardFg;
+    suppressThemePresetSync = false;
   }
 
-  function getThemeFromSettingsForm() {
+  function getThemeVarsFromSettingsForm() {
     return normalizeTheme({
       bannerBg: themeBannerBgInput.value,
       pageBg: themePageBgInput.value,
@@ -1655,19 +1769,60 @@
     });
   }
 
-  function openSettingsModal() {
-    fillSettingsForm(uiState.theme);
-    settingsModal.hidden = false;
-    themeBannerBgInput.focus();
+  function getThemeFromSettingsForm() {
+    const vars = getThemeVarsFromSettingsForm();
+    const selectedPreset = themePresetSelect.value;
+    const presetName = selectedPreset === 'Custom' ? 'Custom' : resolveThemePresetName(vars) === selectedPreset ? selectedPreset : 'Custom';
+    return normalizeThemeState({ presetName, vars });
   }
 
-  function closeSettingsModal() {
+  function previewSettingsTheme() {
+    settingsThemeDraft = getThemeFromSettingsForm();
+    applyTheme(settingsThemeDraft.vars);
+  }
+
+  function applyThemePresetFromSettings() {
+    if (suppressThemePresetSync) return;
+    const preset = themePresetSelect.value;
+    if (!THEMES[preset]) {
+      previewSettingsTheme();
+      return;
+    }
+    fillSettingsForm({ presetName: preset, vars: THEMES[preset] });
+    previewSettingsTheme();
+  }
+
+  function onThemeColorInputChange() {
+    if (suppressThemePresetSync) return;
+    if (themePresetSelect.value !== 'Custom') {
+      suppressThemePresetSync = true;
+      themePresetSelect.value = 'Custom';
+      suppressThemePresetSync = false;
+    }
+    previewSettingsTheme();
+  }
+
+  function openSettingsModal() {
+    settingsThemeSavedSnapshot = normalizeThemeState(uiState.theme);
+    fillSettingsForm(settingsThemeSavedSnapshot);
+    settingsThemeDraft = normalizeThemeState(settingsThemeSavedSnapshot);
+    applyTheme(settingsThemeDraft.vars);
+    settingsModal.hidden = false;
+    themePresetSelect.focus();
+  }
+
+  function closeSettingsModal({ revert = true } = {}) {
+    if (revert && settingsThemeSavedSnapshot) {
+      applyTheme(settingsThemeSavedSnapshot.vars);
+    }
     settingsModal.hidden = true;
+    settingsThemeDraft = null;
+    settingsThemeSavedSnapshot = null;
   }
 
   function saveSettingsModal() {
-    uiState.theme = getThemeFromSettingsForm();
-    applyTheme(uiState.theme);
+    uiState.theme = settingsThemeDraft ? normalizeThemeState(settingsThemeDraft) : getThemeFromSettingsForm();
+    applyTheme(uiState.theme.vars);
     saveUiState();
     renderAll();
   }
@@ -1715,6 +1870,7 @@
 
     action.html = html;
     action.text = text;
+    action.html_inline = richHtmlToInlineHtml(html);
     action.updatedAt = Date.now();
     saveList(activeModalContext.list);
     renderList(activeModalContext.list);
@@ -2249,12 +2405,16 @@
   settingsBtn.addEventListener('click', openSettingsModal);
   settingsForm.addEventListener('submit', (event) => {
     event.preventDefault();
+    previewSettingsTheme();
     saveSettingsModal();
-    closeSettingsModal();
+    closeSettingsModal({ revert: false });
   });
-  settingsCancelBtn.addEventListener('click', closeSettingsModal);
-  settingsModalClose.addEventListener('click', closeSettingsModal);
-  settingsModalBackdrop.addEventListener('click', closeSettingsModal);
+  themePresetSelect.addEventListener('change', applyThemePresetFromSettings);
+  [themeBannerBgInput, themePageBgInput, themeCardHeaderBgInput, themeCardHeaderFgInput, themeCardBgInput, themeCardFgInput]
+    .forEach((input) => input.addEventListener('input', onThemeColorInputChange));
+  settingsCancelBtn.addEventListener('click', () => closeSettingsModal());
+  settingsModalClose.addEventListener('click', () => closeSettingsModal());
+  settingsModalBackdrop.addEventListener('click', () => closeSettingsModal());
   modalBackdrop.addEventListener('click', () => closeModal());
   window.addEventListener('keydown', (event) => {
     if (event.key !== 'Escape') return;
