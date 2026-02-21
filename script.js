@@ -21,6 +21,7 @@
   const AUTOSYNC_DEBOUNCE_MS = 2000;
   const FOCUS_SYNC_DEBOUNCE_MS = 700;
   const PERSON_TAG_REGEX = /(^|[\s(>])(@[A-Za-z0-9_-]+)/g;
+  const HASH_TAG_REGEX = /(^|[\s(>])(#[A-Za-z0-9_-]+)/g;
 
   const DEFAULT_DASHBOARD_TITLE = 'Angus’ Working Dashboard';
 
@@ -194,6 +195,8 @@
   const dashboardDateEl = document.getElementById('dashboard-date');
   const generalPersonFilterSelect = document.getElementById('general-person-filter');
   const schedulingPersonFilterSelect = document.getElementById('scheduling-person-filter');
+  const generalTagFilterSelect = document.getElementById('general-tag-filter');
+  const schedulingTagFilterSelect = document.getElementById('scheduling-tag-filter');
   const generalPersonCountEl = document.getElementById('general-person-filter-count');
   const schedulingPersonCountEl = document.getElementById('scheduling-person-filter-count');
 
@@ -259,6 +262,7 @@
     theme: { presetName: 'Office Blue', vars: { ...defaultTheme } },
     dashboardTitle: DEFAULT_DASHBOARD_TITLE,
     personFilter: 'All',
+    tagFilter: 'All',
   };
 
   const appState = {
@@ -275,6 +279,7 @@
       theme: { presetName: 'Office Blue', vars: { ...defaultTheme } },
       dashboardTitle: DEFAULT_DASHBOARD_TITLE,
       personFilter: 'All',
+      tagFilter: 'All',
     },
     meetingNotesUIState: { collapsedMonths: {}, collapsedWeeks: {} },
     nextActionNumber: DEFAULT_NEXT_NUMBER,
@@ -440,6 +445,37 @@
     [lists.general.actions, lists.scheduling.actions, bigTicket.items].forEach((items) => {
       items.forEach((item) => {
         extractPersonTagsFromAction(item).forEach((tag) => {
+          const key = tag.toLowerCase();
+          if (!unique.has(key)) unique.set(key, tag);
+        });
+      });
+    });
+
+    return Array.from(unique.values()).sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
+  }
+
+  function extractHashTagsFromAction(action) {
+    const sourceText = (typeof action?.text === 'string' && action.text.trim())
+      ? action.text
+      : htmlToPlainText(action?.html || action?.html_inline || '');
+    if (!sourceText) return [];
+
+    const matches = new Map();
+    const regex = new RegExp(HASH_TAG_REGEX);
+    let match;
+    while ((match = regex.exec(sourceText)) !== null) {
+      const tag = match[2];
+      const key = tag.toLowerCase();
+      if (!matches.has(key)) matches.set(key, tag);
+    }
+    return Array.from(matches.values());
+  }
+
+  function collectHashTags() {
+    const unique = new Map();
+    [lists.general.actions, lists.scheduling.actions, bigTicket.items].forEach((items) => {
+      items.forEach((item) => {
+        extractHashTagsFromAction(item).forEach((tag) => {
           const key = tag.toLowerCase();
           if (!unique.has(key)) unique.set(key, tag);
         });
@@ -718,11 +754,13 @@
     if (!suppressAutosync) requestAutosync();
   }
 
-  function saveUiState() {
+  function saveUiState(options = {}) {
+    const shouldMarkDirty = options.markDirty !== false;
+    const shouldAutosync = options.autosync !== false;
     syncAppStateFromMemory();
-    markLocalDirty();
+    if (shouldMarkDirty) markLocalDirty();
     localStorage.setItem('dashboardUiState', JSON.stringify(uiState));
-    if (!suppressAutosync) requestAutosync();
+    if (shouldAutosync && !suppressAutosync) requestAutosync();
   }
 
   function saveMeetingUIState() {
@@ -822,6 +860,9 @@
       : DEFAULT_DASHBOARD_TITLE;
     uiState.personFilter = typeof parsed?.personFilter === 'string' && parsed.personFilter.trim()
       ? parsed.personFilter.trim()
+      : 'All';
+    uiState.tagFilter = typeof parsed?.tagFilter === 'string' && parsed.tagFilter.trim()
+      ? parsed.tagFilter.trim()
       : 'All';
     generalNotes.uiState.collapsedMonths = uiState.collapsedGeneralNotesMonths;
     applyTheme(uiState.theme.vars);
@@ -961,6 +1002,9 @@
       personFilter: typeof baseState.ui.personFilter === 'string' && baseState.ui.personFilter.trim()
         ? baseState.ui.personFilter.trim()
         : 'All',
+      tagFilter: typeof baseState.ui.tagFilter === 'string' && baseState.ui.tagFilter.trim()
+        ? baseState.ui.tagFilter.trim()
+        : 'All',
     };
 
     const highest = Math.max(DEFAULT_NEXT_NUMBER - 1, ...baseState.generalActions.map((i) => i.number), ...baseState.schedulingActions.map((i) => i.number));
@@ -1009,6 +1053,7 @@
       theme: uiState.theme,
       dashboardTitle: uiState.dashboardTitle,
       personFilter: uiState.personFilter || 'All',
+      tagFilter: uiState.tagFilter || 'All',
     };
     appState.meetingNotesUIState = meeting.uiState;
     appState.nextActionNumber = nextActionNumber;
@@ -1302,13 +1347,26 @@
   }
 
   function getSelectedPersonFilter() {
-    const value = typeof uiState.personFilter === 'string' && uiState.personFilter.trim() ? uiState.personFilter.trim() : 'All';
-    return value;
+    return typeof uiState.personFilter === 'string' && uiState.personFilter.trim() ? uiState.personFilter.trim() : 'All';
+  }
+
+  function getSelectedTagFilter() {
+    return typeof uiState.tagFilter === 'string' && uiState.tagFilter.trim() ? uiState.tagFilter.trim() : 'All';
+  }
+
+  function persistViewFilters() {
+    saveUiState({ markDirty: false, autosync: false });
   }
 
   function setPersonFilter(value) {
     uiState.personFilter = typeof value === 'string' && value.trim() ? value.trim() : 'All';
-    saveUiState();
+    persistViewFilters();
+    renderAll();
+  }
+
+  function setTagFilter(value) {
+    uiState.tagFilter = typeof value === 'string' && value.trim() ? value.trim() : 'All';
+    persistViewFilters();
     renderAll();
   }
 
@@ -1318,15 +1376,35 @@
     return extractPersonTagsFromAction(action).some((tag) => tag.toLowerCase() === selectedLower);
   }
 
-  function renderPersonFilterControls() {
-    const tags = collectPersonTags();
-    const selected = getSelectedPersonFilter();
-    const validSelected = selected === 'All' || tags.some((tag) => tag.toLowerCase() === selected.toLowerCase());
-    if (!validSelected) {
+  function actionHasHashTag(action, selectedFilter) {
+    if (!selectedFilter || selectedFilter === 'All') return true;
+    const selectedLower = selectedFilter.toLowerCase();
+    return extractHashTagsFromAction(action).some((tag) => tag.toLowerCase() === selectedLower);
+  }
+
+  function renderActionFilterControls() {
+    const personTags = collectPersonTags();
+    const hashTags = collectHashTags();
+    const selectedPerson = getSelectedPersonFilter();
+    const selectedTag = getSelectedTagFilter();
+    let didReset = false;
+
+    const validPerson = selectedPerson === 'All' || personTags.some((tag) => tag.toLowerCase() === selectedPerson.toLowerCase());
+    if (!validPerson) {
       uiState.personFilter = 'All';
-      saveUiState();
+      didReset = true;
     }
-    const effectiveSelected = validSelected ? selected : 'All';
+
+    const validTag = selectedTag === 'All' || hashTags.some((tag) => tag.toLowerCase() === selectedTag.toLowerCase());
+    if (!validTag) {
+      uiState.tagFilter = 'All';
+      didReset = true;
+    }
+
+    if (didReset) persistViewFilters();
+
+    const effectivePerson = validPerson ? selectedPerson : 'All';
+    const effectiveTag = validTag ? selectedTag : 'All';
 
     [generalPersonFilterSelect, schedulingPersonFilterSelect].forEach((selectEl) => {
       if (!selectEl) return;
@@ -1335,14 +1413,31 @@
       allOption.value = 'All';
       allOption.textContent = 'All';
       selectEl.appendChild(allOption);
-      tags.forEach((tag) => {
+      personTags.forEach((tag) => {
         const option = document.createElement('option');
         option.value = tag;
         option.textContent = tag;
         selectEl.appendChild(option);
       });
-      const selectedTag = tags.find((tag) => tag.toLowerCase() === effectiveSelected.toLowerCase());
-      selectEl.value = effectiveSelected === 'All' ? 'All' : (selectedTag || 'All');
+      const selected = personTags.find((tag) => tag.toLowerCase() === effectivePerson.toLowerCase());
+      selectEl.value = effectivePerson === 'All' ? 'All' : (selected || 'All');
+    });
+
+    [generalTagFilterSelect, schedulingTagFilterSelect].forEach((selectEl) => {
+      if (!selectEl) return;
+      selectEl.innerHTML = '';
+      const allOption = document.createElement('option');
+      allOption.value = 'All';
+      allOption.textContent = 'All';
+      selectEl.appendChild(allOption);
+      hashTags.forEach((tag) => {
+        const option = document.createElement('option');
+        option.value = tag;
+        option.textContent = tag;
+        selectEl.appendChild(option);
+      });
+      const selected = hashTags.find((tag) => tag.toLowerCase() === effectiveTag.toLowerCase());
+      selectEl.value = effectiveTag === 'All' ? 'All' : (selected || 'All');
     });
   }
 
@@ -1350,17 +1445,22 @@
     list.listEl.innerHTML = '';
     const ordered = getOrderedActions(list);
     const selectedPerson = getSelectedPersonFilter();
-    const usePersonFilter = list.key === GENERAL_STORAGE_KEY || list.key === SCHEDULING_STORAGE_KEY;
-    const visible = usePersonFilter ? ordered.filter((action) => actionHasPersonTag(action, selectedPerson)) : ordered;
+    const selectedTag = getSelectedTagFilter();
+    const useFilters = list.key === GENERAL_STORAGE_KEY || list.key === SCHEDULING_STORAGE_KEY;
+    const visible = useFilters
+      ? ordered.filter((action) => actionHasPersonTag(action, selectedPerson) && actionHasHashTag(action, selectedTag))
+      : ordered;
     const totalCount = ordered.length;
     const visibleCount = visible.length;
 
     if (!visible.length) {
       const empty = document.createElement('li');
       empty.className = 'coming-soon';
-      empty.textContent = !usePersonFilter || selectedPerson === 'All' ? 'No actions yet. Add one to get started.' : 'No actions match this person filter.';
+      empty.textContent = !useFilters || (selectedPerson === 'All' && selectedTag === 'All')
+        ? 'No actions yet. Add one to get started.'
+        : 'No actions match the selected filters.';
       list.listEl.appendChild(empty);
-      const countLabel = usePersonFilter && selectedPerson !== 'All' ? `Showing 0 of ${totalCount}` : '';
+      const countLabel = useFilters && (selectedPerson !== 'All' || selectedTag !== 'All') ? `Showing 0 of ${totalCount}` : '';
       if (list.key === GENERAL_STORAGE_KEY && generalPersonCountEl) generalPersonCountEl.textContent = countLabel;
       if (list.key === SCHEDULING_STORAGE_KEY && schedulingPersonCountEl) schedulingPersonCountEl.textContent = countLabel;
       return;
@@ -1482,7 +1582,7 @@
       requestAnimationFrame(() => updateRowTruncation(li));
     });
 
-    const countLabel = usePersonFilter && selectedPerson !== 'All' ? `Showing ${visibleCount} of ${totalCount}` : '';
+    const countLabel = useFilters && (selectedPerson !== 'All' || selectedTag !== 'All') ? `Showing ${visibleCount} of ${totalCount}` : '';
     if (list.key === GENERAL_STORAGE_KEY && generalPersonCountEl) generalPersonCountEl.textContent = countLabel;
     if (list.key === SCHEDULING_STORAGE_KEY && schedulingPersonCountEl) schedulingPersonCountEl.textContent = countLabel;
   }
@@ -2034,7 +2134,7 @@
       meetingNotes: meeting.items.length,
       generalNotes: generalNotes.items.length,
     });
-    renderPersonFilterControls();
+    renderActionFilterControls();
     renderList(lists.general);
     renderList(lists.personal);
     renderList(lists.scheduling);
@@ -2768,6 +2868,7 @@
         theme: currentState.ui?.theme || importedState.ui?.theme || normalizeThemeState(defaultTheme),
         dashboardTitle: currentState.ui?.dashboardTitle || importedState.ui?.dashboardTitle || DEFAULT_DASHBOARD_TITLE,
         personFilter: currentState.ui?.personFilter || importedState.ui?.personFilter || 'All',
+        tagFilter: currentState.ui?.tagFilter || importedState.ui?.tagFilter || 'All',
       },
       meetingNotesUIState: currentState.meetingNotesUIState || importedState.meetingNotesUIState || { collapsedMonths: {}, collapsedWeeks: {} },
       stateVersion: LATEST_STATE_VERSION,
@@ -3087,6 +3188,13 @@
     if (!selectEl) return;
     selectEl.addEventListener('change', (event) => {
       setPersonFilter(event.target.value || 'All');
+    });
+  });
+
+  [generalTagFilterSelect, schedulingTagFilterSelect].forEach((selectEl) => {
+    if (!selectEl) return;
+    selectEl.addEventListener('change', (event) => {
+      setTagFilter(event.target.value || 'All');
     });
   });
 
