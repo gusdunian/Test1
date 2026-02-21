@@ -17,10 +17,17 @@
           <input id="cloud-password-input" type="password" placeholder="Password" autocomplete="current-password" />
           <button id="cloud-sign-in-btn" type="button" class="cloud-btn">Sign in</button>
           <button id="cloud-sign-out-btn" type="button" class="cloud-btn" hidden>Sign out</button>
-          <button id="cloud-push-btn" type="button" class="cloud-btn" disabled hidden>Push</button>
-          <button id="cloud-pull-btn" type="button" class="cloud-btn" disabled hidden>Pull</button>
+          <button id="cloud-export-btn" type="button" class="cloud-btn" disabled hidden>Export</button>
+          <label id="cloud-import-label" class="cloud-btn cloud-import-label" hidden>
+            Import
+            <input id="cloud-import-input" type="file" accept="application/json,.json" hidden />
+          </label>
         </div>
         <div id="cloud-status" class="cloud-status cloud-status-info" role="status" aria-live="polite">Ready</div>
+        <div id="cloud-meta" class="cloud-meta" aria-live="polite">
+          <span id="cloud-signed-in-as">Signed in as: —</span>
+          <span id="cloud-last-synced">Last synced: Never</span>
+        </div>
       </section>
     </header>
 
