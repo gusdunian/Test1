@@ -40,7 +40,7 @@
     <main id="main-content" class="container" aria-live="polite">
       <p id="signed-out-message" class="signed-out-message" hidden>Sign in to view your dashboard.</p>
       <section class="columns" aria-label="Action columns">
-        <article class="column card" aria-labelledby="general-actions-heading">
+        <article class="column card collapsible-card" data-card-id="generalActions" aria-labelledby="general-actions-heading">
           <div class="column-header">
             <h2 id="general-actions-heading">
               <svg class="header-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
@@ -51,116 +51,191 @@
               </svg>
               <span>General action list</span>
             </h2>
+            <button type="button" class="card-toggle" data-card-toggle="generalActions" aria-expanded="true">▾</button>
           </div>
-
-          <div class="action-toolbar">
-            <form id="general-add-action-form" class="add-action-form" autocomplete="off">
-              <label class="visually-hidden" for="general-action-input">New general action description</label>
-              <div class="compact-editor-wrap">
-                <div id="general-action-input" class="compact-rich-editor" contenteditable="true" role="textbox" aria-multiline="true" data-placeholder="Enter a new action"></div>
-                <div class="rtf-toolbar" data-editor-target="general-action-input" role="toolbar" aria-label="General action formatting">
-                  <button type="button" data-command="bold" aria-label="Bold">B</button>
-                  <button type="button" data-command="italic" aria-label="Italic">I</button>
-                  <button type="button" data-command="underline" aria-label="Underline">U</button>
-                  <button type="button" data-command="insertUnorderedList" aria-label="Bulleted list">•</button>
-                  <button type="button" data-command="insertOrderedList" aria-label="Numbered list">1.</button>
+          <div class="card-body" data-card-body="generalActions">
+            <div class="action-toolbar">
+              <form id="general-add-action-form" class="add-action-form" autocomplete="off">
+                <label class="visually-hidden" for="general-action-input">New general action description</label>
+                <div class="compact-editor-wrap">
+                  <div id="general-action-input" class="compact-rich-editor" contenteditable="true" role="textbox" aria-multiline="true" data-placeholder="Enter a new action"></div>
+                  <div class="rtf-toolbar" data-editor-target="general-action-input" role="toolbar" aria-label="General action formatting">
+                    <button type="button" data-command="bold" aria-label="Bold">B</button>
+                    <button type="button" data-command="italic" aria-label="Italic">I</button>
+                    <button type="button" data-command="underline" aria-label="Underline">U</button>
+                    <button type="button" data-command="insertUnorderedList" aria-label="Bulleted list">•</button>
+                    <button type="button" data-command="insertOrderedList" aria-label="Numbered list">1.</button>
+                  </div>
                 </div>
-              </div>
-              <button type="submit" aria-label="Add action">+</button>
-            </form>
-            <button id="general-clear-completed-btn" type="button" class="subtle-button">CC</button>
+                <button type="submit" aria-label="Add action">+</button>
+              </form>
+              <button id="general-clear-completed-btn" type="button" class="subtle-button">CC</button>
+            </div>
+            <ul id="general-action-list" class="action-list" aria-label="General action items"></ul>
           </div>
-
-          <ul id="general-action-list" class="action-list" aria-label="General action items"></ul>
         </article>
 
-        <article class="column card" aria-labelledby="scheduling-heading">
-          <div class="column-header">
-            <h2 id="scheduling-heading">
-              <svg class="header-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-                <rect x="3" y="4" width="18" height="17" rx="2" ry="2" />
-                <path d="M8 2v4" />
-                <path d="M16 2v4" />
-                <path d="M3 9h18" />
-                <path d="M8 13h3" />
-                <path d="M13 13h3" />
-                <path d="M8 17h3" />
-              </svg>
-              <span>Scheduling actions</span>
-            </h2>
-          </div>
-
-          <div class="action-toolbar">
-            <form id="scheduling-add-action-form" class="add-action-form" autocomplete="off">
-              <label class="visually-hidden" for="scheduling-action-input">New scheduling action description</label>
-              <div class="compact-editor-wrap">
-                <div id="scheduling-action-input" class="compact-rich-editor" contenteditable="true" role="textbox" aria-multiline="true" data-placeholder="Enter a scheduling action"></div>
-                <div class="rtf-toolbar" data-editor-target="scheduling-action-input" role="toolbar" aria-label="Scheduling action formatting">
-                  <button type="button" data-command="bold" aria-label="Bold">B</button>
-                  <button type="button" data-command="italic" aria-label="Italic">I</button>
-                  <button type="button" data-command="underline" aria-label="Underline">U</button>
-                  <button type="button" data-command="insertUnorderedList" aria-label="Bulleted list">•</button>
-                  <button type="button" data-command="insertOrderedList" aria-label="Numbered list">1.</button>
-                </div>
+        <div class="column-stack">
+          <article class="column card collapsible-card" data-card-id="bigTicket" aria-labelledby="big-ticket-heading">
+            <div class="column-header">
+              <h2 id="big-ticket-heading">
+                <svg class="header-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                  <path d="m12 3 2.8 5.7 6.2.9-4.5 4.4 1.1 6.2L12 17.2 6.4 20.2l1.1-6.2L3 9.6l6.2-.9z" />
+                </svg>
+                <span>Big ticket items</span>
+              </h2>
+              <button type="button" class="card-toggle" data-card-toggle="bigTicket" aria-expanded="true">▾</button>
+            </div>
+            <div class="card-body" data-card-body="bigTicket">
+              <div class="action-toolbar">
+                <form id="big-ticket-add-form" class="add-action-form" autocomplete="off">
+                  <label class="visually-hidden" for="big-ticket-input">New big ticket item</label>
+                  <div class="compact-editor-wrap">
+                    <div id="big-ticket-input" class="compact-rich-editor" contenteditable="true" role="textbox" aria-multiline="true" data-placeholder="Enter a big ticket item"></div>
+                    <div class="rtf-toolbar" data-editor-target="big-ticket-input" role="toolbar" aria-label="Big ticket formatting">
+                      <button type="button" data-command="bold" aria-label="Bold">B</button>
+                      <button type="button" data-command="italic" aria-label="Italic">I</button>
+                      <button type="button" data-command="underline" aria-label="Underline">U</button>
+                      <button type="button" data-command="insertUnorderedList" aria-label="Bulleted list">•</button>
+                      <button type="button" data-command="insertOrderedList" aria-label="Numbered list">1.</button>
+                    </div>
+                  </div>
+                  <button type="submit" aria-label="Add big ticket item">+</button>
+                </form>
               </div>
-              <button type="submit" aria-label="Add scheduling action">+</button>
-            </form>
-            <button id="scheduling-clear-completed-btn" type="button" class="subtle-button">CC</button>
-          </div>
+              <ul id="big-ticket-list" class="action-list" aria-label="Big ticket items"></ul>
+            </div>
+          </article>
 
-          <ul id="scheduling-action-list" class="action-list" aria-label="Scheduling action items"></ul>
-        </article>
+          <article class="column card collapsible-card" data-card-id="scheduling" aria-labelledby="scheduling-heading">
+            <div class="column-header">
+              <h2 id="scheduling-heading">
+                <svg class="header-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                  <rect x="3" y="4" width="18" height="17" rx="2" ry="2" />
+                  <path d="M8 2v4" />
+                  <path d="M16 2v4" />
+                  <path d="M3 9h18" />
+                  <path d="M8 13h3" />
+                  <path d="M13 13h3" />
+                  <path d="M8 17h3" />
+                </svg>
+                <span>Scheduling actions</span>
+              </h2>
+              <button type="button" class="card-toggle" data-card-toggle="scheduling" aria-expanded="true">▾</button>
+            </div>
+            <div class="card-body" data-card-body="scheduling">
+              <div class="action-toolbar">
+                <form id="scheduling-add-action-form" class="add-action-form" autocomplete="off">
+                  <label class="visually-hidden" for="scheduling-action-input">New scheduling action description</label>
+                  <div class="compact-editor-wrap">
+                    <div id="scheduling-action-input" class="compact-rich-editor" contenteditable="true" role="textbox" aria-multiline="true" data-placeholder="Enter a scheduling action"></div>
+                    <div class="rtf-toolbar" data-editor-target="scheduling-action-input" role="toolbar" aria-label="Scheduling action formatting">
+                      <button type="button" data-command="bold" aria-label="Bold">B</button>
+                      <button type="button" data-command="italic" aria-label="Italic">I</button>
+                      <button type="button" data-command="underline" aria-label="Underline">U</button>
+                      <button type="button" data-command="insertUnorderedList" aria-label="Bulleted list">•</button>
+                      <button type="button" data-command="insertOrderedList" aria-label="Numbered list">1.</button>
+                    </div>
+                  </div>
+                  <button type="submit" aria-label="Add action">+</button>
+                </form>
+                <button id="scheduling-clear-completed-btn" type="button" class="subtle-button">CC</button>
+              </div>
+              <ul id="scheduling-action-list" class="action-list" aria-label="Scheduling action items"></ul>
+            </div>
+          </article>
+        </div>
 
-        <article class="column card" aria-labelledby="meeting-notes-heading">
-          <div class="column-header">
-            <h2 id="meeting-notes-heading">
-              <svg class="header-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-                <path d="M6 3h9l3 3v15H6z" />
-                <path d="M15 3v3h3" />
-                <path d="M9 10h6" />
-                <path d="M9 14h6" />
-                <path d="M9 18h4" />
-              </svg>
-              <span>Meeting notes</span>
-            </h2>
-          </div>
+        <div class="column-stack">
+          <article class="column card collapsible-card" data-card-id="meetingNotes" aria-labelledby="meeting-heading">
+            <div class="column-header">
+              <h2 id="meeting-heading">
+                <svg class="header-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                  <rect x="3" y="4" width="18" height="17" rx="2" ry="2" />
+                  <path d="M8 2v4" />
+                  <path d="M16 2v4" />
+                  <path d="M3 9h18" />
+                  <circle cx="8.5" cy="14" r="1" />
+                  <circle cx="12" cy="14" r="1" />
+                  <circle cx="15.5" cy="14" r="1" />
+                </svg>
+                <span>Meeting notes</span>
+              </h2>
+              <button type="button" class="card-toggle" data-card-toggle="meetingNotes" aria-expanded="true">▾</button>
+            </div>
+            <div class="card-body" data-card-body="meetingNotes">
+              <div class="meeting-toolbar">
+                <form id="meeting-add-form" class="meeting-add-form" autocomplete="off">
+                  <label class="visually-hidden" for="meeting-title-input">Meeting title</label>
+                  <input id="meeting-title-input" name="title" type="text" maxlength="200" placeholder="Meeting title" required />
 
-          <div class="meeting-toolbar">
-            <form id="meeting-add-form" class="meeting-add-form" autocomplete="off">
-              <label class="visually-hidden" for="meeting-title-input">Meeting title</label>
-              <input id="meeting-title-input" name="title" type="text" maxlength="200" placeholder="Meeting title" required />
+                  <div class="meeting-date-time-row">
+                    <label class="visually-hidden" for="meeting-date-input">Meeting date</label>
+                    <input id="meeting-date-input" name="date" type="date" required />
 
-              <div class="meeting-date-time-row">
-                <label class="visually-hidden" for="meeting-date-input">Meeting date</label>
-                <input id="meeting-date-input" name="date" type="date" required />
+                    <label class="visually-hidden" for="meeting-hour-input">Meeting hour</label>
+                    <select id="meeting-hour-input" name="hour" required></select>
 
-                <label class="visually-hidden" for="meeting-hour-input">Meeting hour</label>
-                <select id="meeting-hour-input" name="hour" required></select>
+                    <label class="visually-hidden" for="meeting-minute-input">Meeting minutes</label>
+                    <select id="meeting-minute-input" name="minute" required>
+                      <option value="00">00</option>
+                      <option value="15">15</option>
+                      <option value="30">30</option>
+                      <option value="45">45</option>
+                    </select>
+                  </div>
 
-                <label class="visually-hidden" for="meeting-minute-input">Meeting minutes</label>
-                <select id="meeting-minute-input" name="minute" required>
-                  <option value="00">00</option>
-                  <option value="15">15</option>
-                  <option value="30">30</option>
-                  <option value="45">45</option>
-                </select>
+                  <label class="visually-hidden" for="meeting-notes-editor">Meeting notes</label>
+                  <div class="rtf-toolbar" data-editor-target="meeting-notes-editor" role="toolbar" aria-label="Meeting notes formatting">
+                    <button type="button" data-command="bold" aria-label="Bold">B</button>
+                    <button type="button" data-command="italic" aria-label="Italic">I</button>
+                    <button type="button" data-command="underline" aria-label="Underline">U</button>
+                    <button type="button" data-command="insertUnorderedList" aria-label="Bulleted list">•</button>
+                    <button type="button" data-command="insertOrderedList" aria-label="Numbered list">1.</button>
+                  </div>
+                  <div id="meeting-notes-editor" class="meeting-notes-editor" contenteditable="true" role="textbox" aria-multiline="true" data-placeholder="Add notes"></div>
+                  <button type="submit" aria-label="Add meeting">+</button>
+                </form>
               </div>
 
-              <label class="visually-hidden" for="meeting-notes-editor">Meeting notes</label>
-              <div class="rtf-toolbar" data-editor-target="meeting-notes-editor" role="toolbar" aria-label="Meeting notes formatting">
-                <button type="button" data-command="bold" aria-label="Bold">B</button>
-                <button type="button" data-command="italic" aria-label="Italic">I</button>
-                <button type="button" data-command="underline" aria-label="Underline">U</button>
-                <button type="button" data-command="insertUnorderedList" aria-label="Bulleted list">•</button>
-                <button type="button" data-command="insertOrderedList" aria-label="Numbered list">1.</button>
-              </div>
-              <div id="meeting-notes-editor" class="meeting-notes-editor" contenteditable="true" role="textbox" aria-multiline="true" data-placeholder="Add notes"></div>
-              <button type="submit" aria-label="Add meeting">+</button>
-            </form>
-          </div>
+              <div id="meeting-list" class="meeting-list" aria-live="polite" aria-label="Meeting notes list"></div>
+            </div>
+          </article>
 
-          <div id="meeting-list" class="meeting-list" aria-live="polite" aria-label="Meeting notes list"></div>
-        </article>
+          <article class="column card collapsible-card" data-card-id="generalNotes" aria-labelledby="general-notes-heading">
+            <div class="column-header">
+              <h2 id="general-notes-heading">
+                <svg class="header-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                  <rect x="5" y="3" width="14" height="18" rx="2" ry="2" />
+                  <path d="M8 8h8" />
+                  <path d="M8 12h8" />
+                  <path d="M8 16h5" />
+                </svg>
+                <span>General notes</span>
+              </h2>
+              <button type="button" class="card-toggle" data-card-toggle="generalNotes" aria-expanded="true">▾</button>
+            </div>
+            <div class="card-body" data-card-body="generalNotes">
+              <div class="meeting-toolbar general-notes-toolbar">
+                <form id="general-notes-add-form" class="meeting-add-form" autocomplete="off">
+                  <input id="general-note-date-input" type="date" required />
+                  <input id="general-note-title-input" type="text" maxlength="200" placeholder="Title" required />
+                  <div class="rtf-toolbar" data-editor-target="general-note-editor" role="toolbar" aria-label="General notes formatting">
+                    <button type="button" data-command="bold" aria-label="Bold">B</button>
+                    <button type="button" data-command="italic" aria-label="Italic">I</button>
+                    <button type="button" data-command="underline" aria-label="Underline">U</button>
+                    <button type="button" data-command="insertUnorderedList" aria-label="Bulleted list">•</button>
+                    <button type="button" data-command="insertOrderedList" aria-label="Numbered list">1.</button>
+                  </div>
+                  <div id="general-note-editor" class="meeting-notes-editor" contenteditable="true" role="textbox" aria-multiline="true" data-placeholder="Add a general note"></div>
+                  <button type="submit" aria-label="Add general note">+</button>
+                </form>
+              </div>
+
+              <div id="general-notes-list" class="meeting-list" aria-live="polite" aria-label="General notes list"></div>
+            </div>
+          </article>
+        </div>
       </section>
     </main>
 
@@ -228,6 +303,52 @@
           <label class="visually-hidden" for="meeting-big-edit-notes-editor">Meeting notes</label>
           <div id="meeting-big-edit-notes-editor" class="modal-editor" contenteditable="true" role="textbox" aria-multiline="true"></div>
 
+          <div class="modal-footer">
+            <button type="submit" class="subtle-button">Save</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <div id="big-ticket-modal" class="modal" hidden>
+      <div id="big-ticket-modal-backdrop" class="modal-backdrop"></div>
+      <div class="modal-dialog" role="dialog" aria-modal="true" aria-labelledby="big-ticket-modal-title">
+        <button id="big-ticket-modal-close" type="button" class="modal-close" aria-label="Close modal">×</button>
+        <h3 id="big-ticket-modal-title">Big ticket item</h3>
+        <div class="modal-toolbar">
+          <div class="rtf-toolbar" data-editor-target="big-ticket-modal-editor" role="toolbar" aria-label="Big ticket modal formatting">
+            <button type="button" data-command="bold" aria-label="Bold">B</button>
+            <button type="button" data-command="italic" aria-label="Italic">I</button>
+            <button type="button" data-command="underline" aria-label="Underline">U</button>
+            <button type="button" data-command="insertUnorderedList" aria-label="Bulleted list">•</button>
+            <button type="button" data-command="insertOrderedList" aria-label="Numbered list">1.</button>
+          </div>
+        </div>
+        <div class="modal-body">
+          <div id="big-ticket-modal-editor" class="modal-editor" contenteditable="true" role="textbox" aria-multiline="true"></div>
+        </div>
+        <div class="modal-footer">
+          <button id="big-ticket-modal-save" type="button" class="subtle-button">Save</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="general-note-big-edit-modal" class="modal" hidden>
+      <div id="general-note-big-edit-backdrop" class="modal-backdrop"></div>
+      <div class="modal-dialog" role="dialog" aria-modal="true" aria-labelledby="general-note-big-edit-title">
+        <button id="general-note-big-edit-close" type="button" class="modal-close" aria-label="Close modal">×</button>
+        <h3 id="general-note-big-edit-title">Big edit note</h3>
+        <form id="general-note-big-edit-form" class="meeting-big-edit-form" autocomplete="off">
+          <input id="general-note-big-edit-title-input" name="title" type="text" maxlength="200" required />
+          <input id="general-note-big-edit-date-input" name="date" type="date" required />
+          <div class="rtf-toolbar" data-editor-target="general-note-big-edit-editor" role="toolbar" aria-label="General note big edit formatting">
+            <button type="button" data-command="bold" aria-label="Bold">B</button>
+            <button type="button" data-command="italic" aria-label="Italic">I</button>
+            <button type="button" data-command="underline" aria-label="Underline">U</button>
+            <button type="button" data-command="insertUnorderedList" aria-label="Bulleted list">•</button>
+            <button type="button" data-command="insertOrderedList" aria-label="Numbered list">1.</button>
+          </div>
+          <div id="general-note-big-edit-editor" class="modal-editor" contenteditable="true" role="textbox" aria-multiline="true"></div>
           <div class="modal-footer">
             <button type="submit" class="subtle-button">Save</button>
           </div>

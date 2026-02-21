@@ -245,11 +245,27 @@ body { margin: 0; font-family: Inter, -apple-system, BlinkMacSystemFont, 'Segoe 
 }
 .container { width: 100%; margin: 1rem 0; padding: 0 1.25rem 2rem; }
 .columns { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1rem; align-items: start; width: 100%; }
+.column-stack { display: grid; gap: 1rem; align-content: start; }
 .card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 0; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06); overflow: hidden; }
 .column { min-height: 370px; display: flex; flex-direction: column; background: #fbfcfe; }
-.column-header { width: 100%; padding: 0.8rem 1rem; background: #000; color: #fff; }
+.column-header { width: 100%; padding: 0.65rem 0.8rem 0.65rem 1rem; background: #000; color: #fff; display: flex; align-items: center; justify-content: space-between; gap: 0.4rem; }
 .column-header h2 { margin: 0; font-size: 1.1rem; display: inline-flex; align-items: center; gap: 0.5rem; }
 .header-icon { width: 1.6rem; height: 1.6rem; flex: 0 0 auto; stroke: currentColor; stroke-width: 1.9; fill: none; stroke-linecap: round; stroke-linejoin: round; }
+.card-toggle { border: 0; background: transparent; color: #fff; font-size: 1rem; padding: 0.1rem 0.3rem; min-width: 1.5rem; border-radius: 4px; }
+.card-toggle:hover, .card-toggle:focus-visible { background: rgba(255, 255, 255, 0.2); }
+.card-body[hidden] { display: none; }
+.general-notes-toolbar .meeting-add-form { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto; }
+.general-notes-toolbar .rtf-toolbar,
+.general-notes-toolbar .meeting-notes-editor { grid-column: 1 / span 2; }
+.general-note-month-header { margin: 0; font-size: 0.92rem; font-weight: 700; color: #0f172a; }
+.general-note-item { border-top: 1px solid #edf1f5; padding: 0.35rem 0; }
+.general-note-summary { width: 100%; border: 0; background: transparent; color: #0f172a; text-align: left; padding: 0; font-size: 0.84rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.general-note-summary:hover, .general-note-summary:focus-visible { background: transparent; color: #1e40af; }
+.general-note-detail { margin-top: 0.35rem; padding: 0.5rem 0.6rem; border: 1px solid #e2e8f0; border-radius: 8px; background: #f8fafc; }
+.big-ticket-row { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 0.45rem; align-items: center; padding: 0.28rem 0; border-bottom: 1px solid #edf1f5; }
+.big-ticket-row:last-child { border-bottom: 0; }
+.big-ticket-summary { border: 0; background: transparent; text-align: left; padding: 0; color: #0f172a; font-size: 0.85rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.big-ticket-summary:hover, .big-ticket-summary:focus-visible { background: transparent; color: #1e40af; }
 .action-toolbar { display: flex; align-items: flex-end; gap: 0.75rem; padding: 0.8rem 1rem 0.5rem; }
 .add-action-form { display: flex; gap: 0.4rem; margin: 0; flex: 1; min-width: 0; align-items: flex-end; }
 .compact-editor-wrap { flex: 1; min-width: 0; display: grid; gap: 0.2rem; }
