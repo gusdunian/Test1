@@ -16,8 +16,136 @@
   const CLOUD_LAST_SYNCED_AT_KEY = 'lastSyncedAt';
   const CLOUD_LAST_UPDATED_AT_KEY = 'lastCloudUpdatedAt';
   const LOCAL_STATE_VERSION_KEY = 'dashboardStateVersion';
-  const LATEST_STATE_VERSION = 1;
+  const LATEST_STATE_VERSION = 5;
   const AUTOSYNC_DEBOUNCE_MS = 2000;
+
+  const DEFAULT_DASHBOARD_TITLE = 'Angus’ Working Dashboard';
+
+  const defaultTheme = {
+    bannerBg: '#1e3a8a',
+    bannerFg: '#ffffff',
+    pageBg: '#f3f6fb',
+    cardHeaderBg: '#0f172a',
+    cardHeaderFg: '#ffffff',
+  };
+
+  const THEMES = {
+    'Office Blue': {
+      bannerBg: '#2563eb',
+      bannerFg: '#ffffff',
+      pageBg: '#f8fafc',
+      cardHeaderBg: '#1d4ed8',
+      cardHeaderFg: '#ffffff',
+    },
+    'Office Teal': {
+      bannerBg: '#0f766e',
+      bannerFg: '#f0fdfa',
+      pageBg: '#f0fdfa',
+      cardHeaderBg: '#115e59',
+      cardHeaderFg: '#f0fdfa',
+    },
+    'Office Green': {
+      bannerBg: '#15803d',
+      bannerFg: '#f0fdf4',
+      pageBg: '#f0fdf4',
+      cardHeaderBg: '#166534',
+      cardHeaderFg: '#f0fdf4',
+    },
+    'Office Red': {
+      bannerBg: '#b91c1c',
+      bannerFg: '#fef2f2',
+      pageBg: '#fef2f2',
+      cardHeaderBg: '#991b1b',
+      cardHeaderFg: '#fef2f2',
+    },
+    'Office Orange': {
+      bannerBg: '#c2410c',
+      bannerFg: '#fff7ed',
+      pageBg: '#fff7ed',
+      cardHeaderBg: '#9a3412',
+      cardHeaderFg: '#fff7ed',
+    },
+    'Office Purple': {
+      bannerBg: '#7e22ce',
+      bannerFg: '#faf5ff',
+      pageBg: '#faf5ff',
+      cardHeaderBg: '#6b21a8',
+      cardHeaderFg: '#faf5ff',
+    },
+    'Office Grey': {
+      bannerBg: '#475569',
+      bannerFg: '#f8fafc',
+      pageBg: '#f8fafc',
+      cardHeaderBg: '#334155',
+      cardHeaderFg: '#f8fafc',
+    },
+    Navy: {
+      bannerBg: '#1e3a8a',
+      bannerFg: '#eff6ff',
+      pageBg: '#eff6ff',
+      cardHeaderBg: '#1e40af',
+      cardHeaderFg: '#eff6ff',
+    },
+    Charcoal: {
+      bannerBg: '#1f2937',
+      bannerFg: '#f9fafb',
+      pageBg: '#f3f4f6',
+      cardHeaderBg: '#111827',
+      cardHeaderFg: '#f9fafb',
+    },
+    Forest: {
+      bannerBg: '#14532d',
+      bannerFg: '#f0fdf4',
+      pageBg: '#ecfdf5',
+      cardHeaderBg: '#166534',
+      cardHeaderFg: '#f0fdf4',
+    },
+    Crimson: {
+      bannerBg: '#9f1239',
+      bannerFg: '#fff1f2',
+      pageBg: '#fff1f2',
+      cardHeaderBg: '#881337',
+      cardHeaderFg: '#fff1f2',
+    },
+    Sunshine: {
+      bannerBg: '#ca8a04',
+      bannerFg: '#422006',
+      pageBg: '#fefce8',
+      cardHeaderBg: '#eab308',
+      cardHeaderFg: '#422006',
+    },
+    'Pastel Mint': {
+      bannerBg: '#6ee7b7',
+      bannerFg: '#064e3b',
+      pageBg: '#f0fdf4',
+      cardHeaderBg: '#34d399',
+      cardHeaderFg: '#064e3b',
+    },
+    'Pastel Lavender': {
+      bannerBg: '#c4b5fd',
+      bannerFg: '#312e81',
+      pageBg: '#f5f3ff',
+      cardHeaderBg: '#a78bfa',
+      cardHeaderFg: '#312e81',
+    },
+    'Pastel Peach': {
+      bannerBg: '#fdba74',
+      bannerFg: '#7c2d12',
+      pageBg: '#fff7ed',
+      cardHeaderBg: '#fb923c',
+      cardHeaderFg: '#7c2d12',
+    },
+  };
+
+  const THEME_PRESET_NAMES = [...Object.keys(THEMES), 'Custom'];
+
+  const collapsedCardsDefault = {
+    generalActions: false,
+    bigTicket: false,
+    scheduling: false,
+    meetingNotes: false,
+    generalNotes: false,
+  };
 
   const { createClient } = supabase;
   const sb = createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
@@ -41,9 +169,45 @@
   const meetingBigEditHourInput = document.getElementById('meeting-big-edit-hour-input');
   const meetingBigEditMinuteInput = document.getElementById('meeting-big-edit-minute-input');
   const meetingBigEditNotesEditor = document.getElementById('meeting-big-edit-notes-editor');
+  const bigTicketModal = document.getElementById('big-ticket-modal');
+  const bigTicketModalBackdrop = document.getElementById('big-ticket-modal-backdrop');
+  const bigTicketModalClose = document.getElementById('big-ticket-modal-close');
+  const bigTicketModalSave = document.getElementById('big-ticket-modal-save');
+  const bigTicketModalEditor = document.getElementById('big-ticket-modal-editor');
+  const generalNoteBigEditModal = document.getElementById('general-note-big-edit-modal');
+  const generalNoteBigEditBackdrop = document.getElementById('general-note-big-edit-backdrop');
+  const generalNoteBigEditClose = document.getElementById('general-note-big-edit-close');
+  const generalNoteBigEditForm = document.getElementById('general-note-big-edit-form');
+  const generalNoteBigEditTitleInput = document.getElementById('general-note-big-edit-title-input');
+  const generalNoteBigEditDateInput = document.getElementById('general-note-big-edit-date-input');
+  const generalNoteBigEditEditor = document.getElementById('general-note-big-edit-editor');
   const mainContainer = document.getElementById('main-content');
   const columnsSection = document.querySelector('.columns');
   const signedOutMessage = document.getElementById('signed-out-message');
+  const dashboardTitleEl = document.getElementById('dashboard-title');
+  const dashboardDateEl = document.getElementById('dashboard-date');
+
+  const settingsBtn = document.getElementById('cloud-settings-btn');
+  const settingsModal = document.getElementById('settings-modal');
+  const settingsModalBackdrop = document.getElementById('settings-modal-backdrop');
+  const settingsModalClose = document.getElementById('settings-modal-close');
+  const settingsForm = document.getElementById('settings-form');
+  const settingsCancelBtn = document.getElementById('settings-cancel-btn');
+  const themePresetSelect = document.getElementById('theme-preset-select');
+  const dashboardTitleInput = document.getElementById('dashboard-title-input');
+  const themeBannerBgInput = document.getElementById('theme-banner-bg');
+  const themeBannerFgInput = document.getElementById('theme-banner-fg');
+  const themePageBgInput = document.getElementById('theme-page-bg');
+  const themeCardHeaderBgInput = document.getElementById('theme-card-header-bg');
+  const themeCardHeaderFgInput = document.getElementById('theme-card-header-fg');
+  const importModal = document.getElementById('import-modal');
+  const importModalBackdrop = document.getElementById('import-modal-backdrop');
+  const importModalClose = document.getElementById('import-modal-close');
+  const importForm = document.getElementById('import-form');
+  const importFileInput = document.getElementById('import-file-input');
+  const importCancelBtn = document.getElementById('import-cancel-btn');
+  const meetingBigEditCancel = document.getElementById('meeting-big-edit-cancel');
+  const generalNoteBigEditCancel = document.getElementById('general-note-big-edit-cancel');
 
   const meeting = {
     items: [],
@@ -59,20 +223,62 @@
     listEl: document.getElementById('meeting-list'),
   };
 
+  const bigTicket = {
+    items: [],
+    form: document.getElementById('big-ticket-add-form'),
+    input: document.getElementById('big-ticket-input'),
+    listEl: document.getElementById('big-ticket-list'),
+    activeId: null,
+  };
+
+  const generalNotes = {
+    items: [],
+    expandedId: null,
+    editingId: null,
+    uiState: { collapsedMonths: {} },
+    form: document.getElementById('general-notes-add-form'),
+    dateInput: document.getElementById('general-note-date-input'),
+    titleInput: document.getElementById('general-note-title-input'),
+    editor: document.getElementById('general-note-editor'),
+    listEl: document.getElementById('general-notes-list'),
+  };
+
+  const uiState = {
+    collapsedCards: { ...collapsedCardsDefault },
+    collapsedGeneralNotesMonths: {},
+    theme: { presetName: 'Office Blue', vars: { ...defaultTheme } },
+    dashboardTitle: DEFAULT_DASHBOARD_TITLE,
+  };
+
+  const appState = {
+    stateVersion: LATEST_STATE_VERSION,
+    generalActions: [],
+    schedulingActions: [],
+    meetingNotes: [],
+    bigTicketItems: [],
+    generalNotes: [],
+    ui: {
+      collapsedCards: { ...collapsedCardsDefault },
+      collapsedGeneralNotesMonths: {},
+      theme: { presetName: 'Office Blue', vars: { ...defaultTheme } },
+      dashboardTitle: DEFAULT_DASHBOARD_TITLE,
+    },
+    meetingNotesUIState: { collapsedMonths: {}, collapsedWeeks: {} },
+    nextActionNumber: DEFAULT_NEXT_NUMBER,
+  };
+
   const cloud = {
     emailInput: document.getElementById('cloud-email-input'),
     passwordInput: document.getElementById('cloud-password-input'),
     signInBtn: document.getElementById('cloud-sign-in-btn'),
     signOutBtn: document.getElementById('cloud-sign-out-btn'),
     exportBtn: document.getElementById('cloud-export-btn'),
-    importLabel: document.getElementById('cloud-import-label'),
-    importInput: document.getElementById('cloud-import-input'),
+    importBtn: document.getElementById('cloud-import-btn'),
+    settingsBtn: document.getElementById('cloud-settings-btn'),
     signedInDisplay: document.getElementById('cloud-signed-in-display'),
     signedInEmailEl: document.getElementById('cloud-signed-in-email'),
+    collapseAllBtn: document.getElementById('collapse-all-btn'),
     statusEl: document.getElementById('cloud-status'),
-    metaEl: document.getElementById('cloud-meta'),
-    signedInAsEl: document.getElementById('cloud-signed-in-as'),
-    lastSyncedEl: document.getElementById('cloud-last-synced'),
     toastContainer: document.getElementById('toast-container'),
     signedInUser: null,
     busy: false,
@@ -106,11 +312,17 @@
   let nextActionNumber = DEFAULT_NEXT_NUMBER;
   let activeModalContext = null;
   let activeMeetingBigEditId = null;
+  let activeMeetingBigEditDraft = null;
+  let activeGeneralNoteBigEditId = null;
+  let activeGeneralNoteBigEditDraft = null;
   let isAuthenticated = false;
   let suppressAutosync = false;
   let autosyncTimer = null;
   let autosyncPending = false;
   let autosyncInFlight = false;
+  let settingsThemeDraft = null;
+  let settingsThemeSavedSnapshot = null;
+  let suppressThemePresetSync = false;
 
   function escapeHtml(text) {
     return String(text || '')
@@ -166,6 +378,61 @@
     return (container.textContent || '').replace(/\s+/g, ' ').trim();
   }
 
+  function richHtmlToInlineHtml(html) {
+    const source = sanitizeRichHtml(html || '');
+    const container = document.createElement('div');
+    container.innerHTML = source;
+
+    function nodeToInline(node) {
+      if (node.nodeType === Node.TEXT_NODE) {
+        return node.textContent || '';
+      }
+      if (node.nodeType !== Node.ELEMENT_NODE) {
+        return '';
+      }
+      const tag = node.tagName.toUpperCase();
+      if (tag === 'BR') return ' ';
+      if (tag === 'P') {
+        return Array.from(node.childNodes).map(nodeToInline).join(' ').trim();
+      }
+      if (tag === 'UL' || tag === 'OL') {
+        const items = Array.from(node.children)
+          .filter((child) => child.tagName && child.tagName.toUpperCase() === 'LI')
+          .map((li) => `• ${Array.from(li.childNodes).map(nodeToInline).join(' ').replace(/\s+/g, ' ').trim()}`)
+          .filter(Boolean);
+        return items.join('; ');
+      }
+      if (tag === 'LI') {
+        return Array.from(node.childNodes).map(nodeToInline).join(' ').trim();
+      }
+      if (['B', 'STRONG', 'I', 'EM', 'U'].includes(tag)) {
+        const content = Array.from(node.childNodes).map(nodeToInline).join(' ').replace(/\s+/g, ' ').trim();
+        return content ? `<${tag.toLowerCase()}>${content}</${tag.toLowerCase()}>` : '';
+      }
+      return Array.from(node.childNodes).map(nodeToInline).join(' ');
+    }
+
+    const inline = Array.from(container.childNodes).map(nodeToInline).join(' ').replace(/\s+/g, ' ').trim();
+    return inline || htmlToPlainText(source);
+  }
+
+  function resolveThemePresetName(themeVars) {
+    return Object.entries(THEMES).find(([, vars]) => {
+      const normalized = normalizeTheme(vars);
+      return Object.keys(normalized).every((key) => normalized[key] === themeVars[key]);
+    })?.[0] || 'Custom';
+  }
+
+  function normalizeThemeState(themeLike) {
+    const source = themeLike && typeof themeLike === 'object' ? themeLike : {};
+    const varsSource = source.vars && typeof source.vars === 'object' ? source.vars : source;
+    const vars = normalizeTheme(varsSource);
+    const presetName = THEME_PRESET_NAMES.includes(source.presetName)
+      ? source.presetName
+      : resolveThemePresetName(vars);
+    return { presetName, vars };
+  }
+
   function ensureActionRichContent(action) {
     if (!action) {
       return;
@@ -174,6 +441,7 @@
       action.html = textToRichHtml(action.text);
     }
     action.html = sanitizeRichHtml(action.html || textToRichHtml(action.text || '')) || textToRichHtml(action.text || '');
+    action.html_inline = richHtmlToInlineHtml(action.html);
     action.text = htmlToPlainText(action.html);
   }
 
@@ -186,6 +454,39 @@
     }
     item.notesHtml = sanitizeRichHtml(item.notesHtml || textToRichHtml(item.notes || '')) || textToRichHtml(item.notes || '');
     item.notesText = htmlToPlainText(item.notesHtml);
+  }
+
+  function normalizeBigTicketItem(item) {
+    const html = sanitizeRichHtml(typeof item?.html === 'string' ? item.html : textToRichHtml(item?.text || ''));
+    const text = htmlToPlainText(html);
+    if (!text) return null;
+    return {
+      id: typeof item?.id === 'string' && item.id ? item.id : `ticket-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+      html,
+      html_inline: richHtmlToInlineHtml(typeof item?.html_inline === 'string' ? item.html_inline : html),
+      text,
+      completed: Boolean(item?.completed),
+      createdAt: Number(item?.createdAt) || Date.now(),
+      updatedAt: Number(item?.updatedAt) || Date.now(),
+    };
+  }
+
+  function normalizeGeneralNote(item) {
+    const title = typeof item?.title === 'string' ? item.title.trim() : '';
+    const date = typeof item?.date === 'string' ? item.date : '';
+    const html = sanitizeRichHtml(typeof item?.html === 'string' ? item.html : textToRichHtml(item?.text || ''));
+    const text = htmlToPlainText(html);
+    if (!title || !date || !text) return null;
+    return {
+      id: typeof item?.id === 'string' && item.id ? item.id : `gn-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+      date,
+      title,
+      html,
+      html_inline: richHtmlToInlineHtml(typeof item?.html_inline === 'string' ? item.html_inline : html),
+      text,
+      createdAt: Number(item?.createdAt) || Date.now(),
+      updatedAt: Number(item?.updatedAt) || Date.now(),
+    };
   }
 
   function formatLocalDate(timestamp) {
@@ -273,6 +574,7 @@
       number,
       text,
       html,
+      html_inline: richHtmlToInlineHtml(html),
       createdAt,
       completed,
       deleted,
@@ -308,21 +610,43 @@
   }
 
   function saveList(list) {
+    syncAppStateFromMemory();
     localStorage.setItem(list.key, JSON.stringify(list.actions));
     if (!suppressAutosync) requestAutosync();
   }
 
   function saveMeetings() {
+    syncAppStateFromMemory();
     localStorage.setItem(MEETING_STORAGE_KEY, JSON.stringify(meeting.items));
     if (!suppressAutosync) requestAutosync();
   }
 
+  function saveBigTicketItems() {
+    syncAppStateFromMemory();
+    localStorage.setItem('bigTicketItems', JSON.stringify(bigTicket.items));
+    if (!suppressAutosync) requestAutosync();
+  }
+
+  function saveGeneralNotes() {
+    syncAppStateFromMemory();
+    localStorage.setItem('generalNotes', JSON.stringify(generalNotes.items));
+    if (!suppressAutosync) requestAutosync();
+  }
+
+  function saveUiState() {
+    syncAppStateFromMemory();
+    localStorage.setItem('dashboardUiState', JSON.stringify(uiState));
+    if (!suppressAutosync) requestAutosync();
+  }
+
   function saveMeetingUIState() {
+    syncAppStateFromMemory();
     localStorage.setItem(MEETING_UI_STORAGE_KEY, JSON.stringify(meeting.uiState));
     if (!suppressAutosync) requestAutosync();
   }
 
   function saveNextNumber() {
+    syncAppStateFromMemory();
     localStorage.setItem(NEXT_NUMBER_STORAGE_KEY, String(nextActionNumber));
     localStorage.setItem(LOCAL_STATE_VERSION_KEY, String(LATEST_STATE_VERSION));
     if (!suppressAutosync) requestAutosync();
@@ -356,6 +680,54 @@
     } catch {
       meeting.uiState = { collapsedMonths: {}, collapsedWeeks: {} };
     }
+  }
+
+  function loadBigTicketItems() {
+    const parsed = parseStoredJson(localStorage.getItem('bigTicketItems'), []);
+    bigTicket.items = Array.isArray(parsed) ? parsed.map(normalizeBigTicketItem).filter(Boolean) : [];
+  }
+
+  function loadGeneralNotes() {
+    const parsed = parseStoredJson(localStorage.getItem('generalNotes'), []);
+    generalNotes.items = Array.isArray(parsed) ? parsed.map(normalizeGeneralNote).filter(Boolean) : [];
+  }
+
+  function normalizeTheme(themeLike) {
+    const source = themeLike && typeof themeLike === 'object' ? themeLike : {};
+    return {
+      bannerBg: typeof source.bannerBg === 'string' ? source.bannerBg : defaultTheme.bannerBg,
+      bannerFg: typeof source.bannerFg === 'string' ? source.bannerFg : defaultTheme.bannerFg,
+      pageBg: typeof source.pageBg === 'string' ? source.pageBg : defaultTheme.pageBg,
+      cardHeaderBg: typeof source.cardHeaderBg === 'string' ? source.cardHeaderBg : defaultTheme.cardHeaderBg,
+      cardHeaderFg: typeof source.cardHeaderFg === 'string' ? source.cardHeaderFg : defaultTheme.cardHeaderFg,
+    };
+  }
+
+  function applyTheme(themeLike) {
+    const theme = normalizeTheme(themeLike);
+    const root = document.documentElement;
+    root.style.setProperty('--banner-bg', theme.bannerBg);
+    root.style.setProperty('--banner-fg', theme.bannerFg);
+    root.style.setProperty('--page-bg', theme.pageBg);
+    root.style.setProperty('--card-header-bg', theme.cardHeaderBg);
+    root.style.setProperty('--card-header-fg', theme.cardHeaderFg);
+  }
+
+  function loadUiState() {
+    const parsed = parseStoredJson(localStorage.getItem('dashboardUiState'), {});
+    uiState.collapsedCards = {
+      ...collapsedCardsDefault,
+      ...(parsed?.collapsedCards && typeof parsed.collapsedCards === 'object' ? parsed.collapsedCards : {}),
+    };
+    uiState.collapsedGeneralNotesMonths = parsed?.collapsedGeneralNotesMonths && typeof parsed.collapsedGeneralNotesMonths === 'object'
+      ? parsed.collapsedGeneralNotesMonths
+      : {};
+    uiState.theme = normalizeThemeState(parsed?.theme);
+    uiState.dashboardTitle = typeof parsed?.dashboardTitle === 'string' && parsed.dashboardTitle.trim()
+      ? parsed.dashboardTitle.trim()
+      : DEFAULT_DASHBOARD_TITLE;
+    generalNotes.uiState.collapsedMonths = uiState.collapsedGeneralNotesMonths;
+    applyTheme(uiState.theme.vars);
   }
 
   function migrateLegacyGeneralData() {
@@ -395,6 +767,9 @@
       generalActions: Array.isArray(incoming.generalActions) ? incoming.generalActions.map(normalizeAction).filter(Boolean) : [],
       schedulingActions: Array.isArray(incoming.schedulingActions) ? incoming.schedulingActions.map(normalizeAction).filter(Boolean) : [],
       meetingNotes: Array.isArray(incoming.meetingNotes) ? incoming.meetingNotes.map(normalizeMeeting).filter(Boolean) : [],
+      bigTicketItems: Array.isArray(incoming.bigTicketItems) ? incoming.bigTicketItems.map(normalizeBigTicketItem).filter(Boolean) : [],
+      generalNotes: Array.isArray(incoming.generalNotes) ? incoming.generalNotes.map(normalizeGeneralNote).filter(Boolean) : [],
+      ui: incoming.ui && typeof incoming.ui === 'object' ? incoming.ui : {},
       meetingNotesUIState: incoming.meetingNotesUIState && typeof incoming.meetingNotesUIState === 'object'
         ? {
           collapsedMonths: incoming.meetingNotesUIState.collapsedMonths && typeof incoming.meetingNotesUIState.collapsedMonths === 'object' ? incoming.meetingNotesUIState.collapsedMonths : {},
@@ -406,14 +781,62 @@
         : DEFAULT_NEXT_NUMBER,
     };
 
-    if (baseState.stateVersion < 1) {
-      baseState.stateVersion = 1;
+    if (baseState.stateVersion < 2) {
+      baseState.bigTicketItems = baseState.bigTicketItems || [];
+      baseState.generalNotes = baseState.generalNotes || [];
+      baseState.ui = {
+        collapsedCards: {
+          ...collapsedCardsDefault,
+          ...(baseState.ui.collapsedCards && typeof baseState.ui.collapsedCards === 'object' ? baseState.ui.collapsedCards : {}),
+        },
+      };
+      baseState.stateVersion = 2;
+    }
+
+    if (baseState.stateVersion < 3) {
+      baseState.ui = {
+        ...baseState.ui,
+        collapsedGeneralNotesMonths: baseState.ui.collapsedGeneralNotesMonths && typeof baseState.ui.collapsedGeneralNotesMonths === 'object' ? baseState.ui.collapsedGeneralNotesMonths : {},
+        theme: normalizeThemeState(baseState.ui.theme),
+      };
+      baseState.stateVersion = 3;
+    }
+
+    if (baseState.stateVersion < 4) {
+      baseState.generalActions.forEach(ensureActionRichContent);
+      baseState.schedulingActions.forEach(ensureActionRichContent);
+      baseState.bigTicketItems = baseState.bigTicketItems.map(normalizeBigTicketItem).filter(Boolean);
+      baseState.generalNotes = baseState.generalNotes.map(normalizeGeneralNote).filter(Boolean);
+      baseState.ui = { ...baseState.ui, theme: normalizeThemeState(baseState.ui.theme) };
+      baseState.stateVersion = 4;
+    }
+
+    if (baseState.stateVersion < 5) {
+      baseState.ui = {
+        ...baseState.ui,
+        theme: normalizeThemeState(baseState.ui.theme),
+        dashboardTitle: typeof baseState.ui.dashboardTitle === 'string' && baseState.ui.dashboardTitle.trim()
+          ? baseState.ui.dashboardTitle.trim()
+          : DEFAULT_DASHBOARD_TITLE,
+      };
+      baseState.stateVersion = 5;
     }
 
     if (baseState.stateVersion < LATEST_STATE_VERSION) {
-      // Future migrations can be chained here.
       baseState.stateVersion = LATEST_STATE_VERSION;
     }
+
+    baseState.ui = {
+      collapsedCards: {
+        ...collapsedCardsDefault,
+        ...(baseState.ui.collapsedCards && typeof baseState.ui.collapsedCards === 'object' ? baseState.ui.collapsedCards : {}),
+      },
+      collapsedGeneralNotesMonths: baseState.ui.collapsedGeneralNotesMonths && typeof baseState.ui.collapsedGeneralNotesMonths === 'object' ? baseState.ui.collapsedGeneralNotesMonths : {},
+      theme: normalizeThemeState(baseState.ui.theme),
+      dashboardTitle: typeof baseState.ui.dashboardTitle === 'string' && baseState.ui.dashboardTitle.trim()
+        ? baseState.ui.dashboardTitle.trim()
+        : DEFAULT_DASHBOARD_TITLE,
+    };
 
     const highest = Math.max(DEFAULT_NEXT_NUMBER - 1, ...baseState.generalActions.map((i) => i.number), ...baseState.schedulingActions.map((i) => i.number));
     if (baseState.nextActionNumber <= highest) {
@@ -432,15 +855,39 @@
     }
   }
 
-  function getLocalDashboardState() {
+  function getStateSnapshotFromMemory() {
     return migrateState({
-      stateVersion: Number(localStorage.getItem(LOCAL_STATE_VERSION_KEY)) || LATEST_STATE_VERSION,
-      generalActions: parseStoredJson(localStorage.getItem(GENERAL_STORAGE_KEY), []),
-      schedulingActions: parseStoredJson(localStorage.getItem(SCHEDULING_STORAGE_KEY), []),
-      meetingNotes: parseStoredJson(localStorage.getItem(MEETING_STORAGE_KEY), []),
-      meetingNotesUIState: parseStoredJson(localStorage.getItem(MEETING_UI_STORAGE_KEY), { collapsedMonths: {}, collapsedWeeks: {} }),
-      nextActionNumber: Number(localStorage.getItem(NEXT_NUMBER_STORAGE_KEY)) || DEFAULT_NEXT_NUMBER,
+      stateVersion: appState.stateVersion,
+      generalActions: appState.generalActions,
+      schedulingActions: appState.schedulingActions,
+      meetingNotes: appState.meetingNotes,
+      bigTicketItems: appState.bigTicketItems,
+      generalNotes: appState.generalNotes,
+      ui: appState.ui,
+      meetingNotesUIState: appState.meetingNotesUIState,
+      nextActionNumber: appState.nextActionNumber,
     });
+  }
+
+  function syncAppStateFromMemory() {
+    appState.stateVersion = LATEST_STATE_VERSION;
+    appState.generalActions = lists.general.actions;
+    appState.schedulingActions = lists.scheduling.actions;
+    appState.meetingNotes = meeting.items;
+    appState.bigTicketItems = bigTicket.items;
+    appState.generalNotes = generalNotes.items;
+    appState.ui = {
+      collapsedCards: uiState.collapsedCards,
+      collapsedGeneralNotesMonths: uiState.collapsedGeneralNotesMonths,
+      theme: uiState.theme,
+      dashboardTitle: uiState.dashboardTitle,
+    };
+    appState.meetingNotesUIState = meeting.uiState;
+    appState.nextActionNumber = nextActionNumber;
+  }
+
+  function getLocalDashboardState() {
+    return getStateSnapshotFromMemory();
   }
 
   function setLocalDashboardState(stateObj) {
@@ -449,10 +896,14 @@
       localStorage.setItem(GENERAL_STORAGE_KEY, JSON.stringify(state.generalActions));
       localStorage.setItem(SCHEDULING_STORAGE_KEY, JSON.stringify(state.schedulingActions));
       localStorage.setItem(MEETING_STORAGE_KEY, JSON.stringify(state.meetingNotes));
+      localStorage.setItem('bigTicketItems', JSON.stringify(state.bigTicketItems));
+      localStorage.setItem('generalNotes', JSON.stringify(state.generalNotes));
+      localStorage.setItem('dashboardUiState', JSON.stringify(state.ui));
       localStorage.setItem(MEETING_UI_STORAGE_KEY, JSON.stringify(state.meetingNotesUIState));
       localStorage.setItem(NEXT_NUMBER_STORAGE_KEY, String(state.nextActionNumber));
       localStorage.setItem(LOCAL_STATE_VERSION_KEY, String(state.stateVersion || LATEST_STATE_VERSION));
       loadData();
+      syncAppStateFromMemory();
       renderAll();
     });
   }
@@ -466,10 +917,13 @@
 
   function updateCloudMeta() {
     const email = cloud.signedInUser?.email || '—';
-    cloud.signedInAsEl.textContent = `Signed in as: ${email}`;
-    cloud.signedInEmailEl.textContent = email;
+    if (cloud.signedInEmailEl) {
+      cloud.signedInEmailEl.textContent = email;
+    }
     const label = formatCloudTimestamp(cloud.lastSyncedAt) || 'Never';
-    cloud.lastSyncedEl.textContent = `Last synced: ${label}`;
+    if (cloud.signedInUser && !cloud.busy && !cloud.syncInFlight) {
+      setStatus(`Synced — Last synced: ${label}`, 'success', { toast: false });
+    }
   }
 
   function markLastSynced(timestamp, cloudUpdatedAt = null) {
@@ -493,13 +947,14 @@
     }, 3600);
   }
 
-  function setStatus(message, type = 'info') {
+  function setStatus(message, type = 'info', options = {}) {
     if (!cloud.statusEl) return;
     const normalizedType = ['info', 'success', 'warning', 'error', 'loading'].includes(type) ? type : 'info';
     const nextMessage = message || 'Ready';
     cloud.statusEl.textContent = nextMessage;
     cloud.statusEl.className = `cloud-status cloud-status-${normalizedType}`;
-    if (normalizedType !== 'loading') {
+    const shouldToast = options.toast !== false;
+    if (normalizedType !== 'loading' && shouldToast) {
       showToast(nextMessage, normalizedType === 'warning' ? 'warning' : normalizedType);
     }
   }
@@ -532,17 +987,19 @@
     cloud.signOutBtn.hidden = !signedIn;
     cloud.signInBtn.hidden = signedIn;
     cloud.exportBtn.hidden = !signedIn;
-    cloud.importLabel.hidden = !signedIn;
+    cloud.importBtn.hidden = !signedIn;
+    cloud.settingsBtn.hidden = !signedIn;
+    cloud.collapseAllBtn.hidden = !signedIn;
     cloud.signedInDisplay.hidden = !signedIn;
+    cloud.emailInput.hidden = signedIn;
     cloud.passwordInput.hidden = signedIn;
-    cloud.statusEl.hidden = !cloud.busy && !cloud.syncInFlight;
-    cloud.metaEl.hidden = !signedIn;
-    cloud.signedInAsEl.hidden = true;
-    cloud.lastSyncedEl.hidden = !signedIn;
+    cloud.statusEl.hidden = false;
     cloud.exportBtn.disabled = cloud.busy || !signedIn;
-    cloud.importLabel.classList.toggle('is-disabled', cloud.busy || !signedIn);
+    cloud.importBtn.disabled = cloud.busy || !signedIn || cloud.syncInFlight;
     cloud.signInBtn.disabled = cloud.busy || cloud.syncInFlight || signedIn;
     cloud.signOutBtn.disabled = cloud.busy || !signedIn;
+    cloud.settingsBtn.disabled = cloud.busy || !signedIn || cloud.syncInFlight;
+    cloud.collapseAllBtn.disabled = cloud.busy || !signedIn || cloud.syncInFlight;
     cloud.emailInput.disabled = cloud.busy || signedIn || cloud.syncInFlight;
     cloud.passwordInput.disabled = cloud.busy || cloud.syncInFlight || signedIn;
 
@@ -550,8 +1007,8 @@
       cloud.statusEl.classList.toggle('cloud-status-loading', true);
     }
 
-    if ((!cloud.statusEl.textContent || !cloud.statusEl.textContent.trim()) && !cloud.syncInFlight) {
-      setStatus('Ready', 'info');
+    if (!signedIn && !cloud.busy && !cloud.syncInFlight) {
+      setStatus('Ready', 'info', { toast: false });
     }
     updateCloudMeta();
   }
@@ -561,6 +1018,8 @@
       list.listEl.innerHTML = '';
     });
     meeting.listEl.innerHTML = '';
+    bigTicket.listEl.innerHTML = '';
+    generalNotes.listEl.innerHTML = '';
   }
 
   function applyAuthUiState(options = {}) {
@@ -587,6 +1046,8 @@
       renderSignedOutState();
       closeModal(true);
       closeMeetingBigEdit();
+      closeBigTicketModal(true);
+      closeGeneralNoteBigEdit();
       return;
     }
 
@@ -595,6 +1056,8 @@
         list.listEl.innerHTML = '';
       });
       meeting.listEl.innerHTML = '';
+    bigTicket.listEl.innerHTML = '';
+    generalNotes.listEl.innerHTML = '';
       return;
     }
 
@@ -607,6 +1070,14 @@
       generalActions: [],
       schedulingActions: [],
       meetingNotes: [],
+      bigTicketItems: [],
+      generalNotes: [],
+      ui: {
+      collapsedCards: { ...collapsedCardsDefault },
+      collapsedGeneralNotesMonths: {},
+      theme: { presetName: 'Office Blue', vars: { ...defaultTheme } },
+      dashboardTitle: DEFAULT_DASHBOARD_TITLE,
+    },
       meetingNotesUIState: { collapsedMonths: {}, collapsedWeeks: {} },
       nextActionNumber: DEFAULT_NEXT_NUMBER,
     });
@@ -622,6 +1093,9 @@
       loadList(lists.scheduling);
       loadMeetings();
       loadMeetingUIState();
+      loadBigTicketItems();
+      loadGeneralNotes();
+      loadUiState();
 
       const highest = Math.max(DEFAULT_NEXT_NUMBER - 1, ...lists.general.actions.map((i) => i.number), ...lists.scheduling.actions.map((i) => i.number));
       if (nextActionNumber <= highest) {
@@ -633,6 +1107,10 @@
       saveList(lists.general);
       saveList(lists.scheduling);
       saveMeetings();
+      saveBigTicketItems();
+      saveGeneralNotes();
+      saveUiState();
+      syncAppStateFromMemory();
     });
   }
 
@@ -719,7 +1197,7 @@
 
       const text = document.createElement('span');
       text.className = 'action-text';
-      text.textContent = action.text;
+      text.innerHTML = action.html_inline || escapeHtml(action.text);
       if (action.urgencyLevel === 2 && !action.completed && !action.deleted) text.classList.add('super-urgent-text');
       textWrap.appendChild(text);
 
@@ -903,6 +1381,9 @@
         item.notesText = notesText;
         item.updatedAt = new Date().toISOString();
         saveMeetings();
+      saveBigTicketItems();
+      saveGeneralNotes();
+      saveUiState();
         meeting.editingId = null;
         renderMeetings();
       });
@@ -939,6 +1420,9 @@
       if (meeting.expandedId === item.id) meeting.expandedId = null;
       if (meeting.editingId === item.id) meeting.editingId = null;
       saveMeetings();
+      saveBigTicketItems();
+      saveGeneralNotes();
+      saveUiState();
       renderMeetings();
     });
 
@@ -987,6 +1471,7 @@
       monthSection.appendChild(monthHeaderRow);
 
       const monthBody = document.createElement('div');
+      monthBody.className = 'meeting-month-body';
       monthBody.hidden = monthCollapsed;
 
       month.weeks.forEach((week) => {
@@ -1047,14 +1532,227 @@
     });
   }
 
+
+  function renderCardCollapseState() {
+    document.querySelectorAll('[data-card-toggle]').forEach((toggle) => {
+      const cardId = toggle.dataset.cardToggle;
+      const collapsed = Boolean(uiState.collapsedCards[cardId]);
+      const body = document.querySelector(`[data-card-body="${cardId}"]`);
+      toggle.textContent = collapsed ? '▸' : '▾';
+      toggle.setAttribute('aria-expanded', String(!collapsed));
+      if (body) body.hidden = collapsed;
+    });
+  }
+
+
+  function getOrdinalSuffix(day) {
+    const remainder100 = day % 100;
+    if (remainder100 >= 11 && remainder100 <= 13) return 'th';
+    const remainder10 = day % 10;
+    if (remainder10 === 1) return 'st';
+    if (remainder10 === 2) return 'nd';
+    if (remainder10 === 3) return 'rd';
+    return 'th';
+  }
+
+  function renderDashboardHeading() {
+    const title = uiState.dashboardTitle || DEFAULT_DASHBOARD_TITLE;
+    dashboardTitleEl.textContent = title;
+    document.title = title;
+    const today = new Date();
+    const dayName = today.toLocaleDateString('en-GB', { weekday: 'long' });
+    const monthName = today.toLocaleDateString('en-GB', { month: 'long' });
+    const day = today.getDate();
+    const year = today.getFullYear();
+    dashboardDateEl.textContent = `${dayName} ${day}${getOrdinalSuffix(day)} ${monthName} ${year}`;
+  }
+
+  function renderCollapseAllButton() {
+    const allCollapsed = Object.values(uiState.collapsedCards).every(Boolean);
+    cloud.collapseAllBtn.textContent = allCollapsed ? 'Expand' : 'Hide';
+    cloud.collapseAllBtn.setAttribute('aria-label', allCollapsed ? 'Expand all cards' : 'Hide all cards');
+  }
+
+  function toggleAllCardsCollapse() {
+    const allCollapsed = Object.values(uiState.collapsedCards).every(Boolean);
+    Object.keys(collapsedCardsDefault).forEach((cardId) => {
+      uiState.collapsedCards[cardId] = !allCollapsed;
+    });
+    saveUiState();
+    renderCardCollapseState();
+    renderCollapseAllButton();
+  }
+
+  function renderBigTicketItems() {
+    bigTicket.listEl.innerHTML = '';
+    if (!bigTicket.items.length) {
+      const empty = document.createElement('li');
+      empty.className = 'coming-soon';
+      empty.textContent = 'No big ticket items yet.';
+      bigTicket.listEl.appendChild(empty);
+      return;
+    }
+
+    const ordered = [...bigTicket.items].sort((a, b) => Number(a.completed) - Number(b.completed) || b.createdAt - a.createdAt);
+    ordered.forEach((item) => {
+      const row = document.createElement('li');
+      row.className = 'big-ticket-row';
+
+      const cb = document.createElement('input');
+      cb.type = 'checkbox';
+      cb.checked = item.completed;
+      cb.addEventListener('change', () => {
+        item.completed = cb.checked;
+        item.updatedAt = Date.now();
+        saveBigTicketItems();
+        renderBigTicketItems();
+      });
+
+      const summary = document.createElement('button');
+      summary.type = 'button';
+      summary.className = 'big-ticket-summary';
+      summary.innerHTML = item.html_inline || escapeHtml(item.text);
+      summary.addEventListener('click', () => openBigTicketModal(item.id));
+
+      const del = document.createElement('button');
+      del.type = 'button';
+      del.className = 'icon-btn delete-btn';
+      del.textContent = 'X';
+      del.addEventListener('click', () => {
+        bigTicket.items = bigTicket.items.filter((entry) => entry.id !== item.id);
+        if (bigTicket.activeId === item.id) bigTicket.activeId = null;
+        saveBigTicketItems();
+        renderBigTicketItems();
+      });
+
+      row.append(cb, summary, del);
+      bigTicket.listEl.appendChild(row);
+    });
+  }
+
+  function getGeneralNoteGroups() {
+    const sorted = [...generalNotes.items].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime() || b.createdAt - a.createdAt);
+    const map = new Map();
+    sorted.forEach((note) => {
+      const d = new Date(`${note.date}T00:00:00`);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      if (!map.has(key)) {
+        map.set(key, { key, label: d.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' }), items: [] });
+      }
+      map.get(key).items.push(note);
+    });
+    return Array.from(map.values());
+  }
+
+  function renderGeneralNotes() {
+    generalNotes.listEl.innerHTML = '';
+    if (!generalNotes.items.length) {
+      const empty = document.createElement('p');
+      empty.className = 'meeting-empty';
+      empty.textContent = 'No general notes yet.';
+      generalNotes.listEl.appendChild(empty);
+      return;
+    }
+
+    getGeneralNoteGroups().forEach((group) => {
+      const section = document.createElement('section');
+      const headerRow = document.createElement('div');
+      headerRow.className = 'general-note-month-row';
+      const monthToggle = document.createElement('button');
+      monthToggle.type = 'button';
+      monthToggle.className = 'collapse-toggle';
+      const monthCollapsed = Boolean(uiState.collapsedGeneralNotesMonths[group.key]);
+      monthToggle.textContent = monthCollapsed ? '+' : '–';
+      monthToggle.addEventListener('click', () => {
+        uiState.collapsedGeneralNotesMonths[group.key] = !monthCollapsed;
+        generalNotes.uiState.collapsedMonths = uiState.collapsedGeneralNotesMonths;
+        saveUiState();
+        renderGeneralNotes();
+      });
+      const header = document.createElement('h4');
+      header.className = 'general-note-month-header';
+      header.textContent = group.label;
+      headerRow.append(monthToggle, header);
+      section.appendChild(headerRow);
+
+      const list = document.createElement('ul');
+      list.className = 'meeting-items general-note-items';
+      list.hidden = monthCollapsed;
+      group.items.forEach((note) => {
+        const li = document.createElement('li');
+        li.className = 'general-note-item';
+        const summary = document.createElement('button');
+        summary.type = 'button';
+        summary.className = 'general-note-summary';
+        const day = note.date.split('-').reverse().slice(0, 2).join('/');
+        summary.textContent = `${day} — ${note.title}`;
+        summary.addEventListener('click', () => {
+          generalNotes.expandedId = generalNotes.expandedId === note.id ? null : note.id;
+          generalNotes.editingId = null;
+          renderGeneralNotes();
+        });
+        li.appendChild(summary);
+
+        if (generalNotes.expandedId === note.id) {
+          const detail = document.createElement('div');
+          detail.className = 'general-note-detail';
+
+          if (generalNotes.editingId === note.id) {
+            const form = document.createElement('form');
+            form.className = 'meeting-edit-form';
+            const d = document.createElement('input'); d.type = 'date'; d.required = true; d.value = note.date;
+            const t = document.createElement('input'); t.type = 'text'; t.required = true; t.value = note.title;
+            const toolbar = document.createElement('div'); toolbar.className = 'rtf-toolbar';
+            const editorId = `gn-edit-${note.id}`; toolbar.dataset.editorTarget = editorId;
+            toolbar.innerHTML = '<button type="button" data-command="bold">B</button><button type="button" data-command="italic">I</button><button type="button" data-command="underline">U</button><button type="button" data-command="insertUnorderedList">•</button><button type="button" data-command="insertOrderedList">1.</button>';
+            const editor = document.createElement('div'); editor.id = editorId; editor.className = 'modal-editor'; editor.contentEditable = 'true'; editor.innerHTML = note.html;
+            const controls = document.createElement('div'); controls.className = 'meeting-detail-controls';
+            const save = document.createElement('button'); save.type='submit'; save.className='meeting-link-btn'; save.textContent='Save';
+            const cancel = document.createElement('button'); cancel.type='button'; cancel.className='meeting-link-btn'; cancel.textContent='Cancel';
+            cancel.addEventListener('click',()=>{generalNotes.editingId=null; renderGeneralNotes();});
+            controls.append(save,cancel);
+            form.append(d,t,toolbar,editor,controls);
+            bindRtfToolbar(toolbar); bindEditorShortcuts(editor);
+            form.addEventListener('submit',(e)=>{e.preventDefault(); const html=sanitizeRichHtml(editor.innerHTML); const text=htmlToPlainText(html); const title=t.value.trim(); if(!title||!d.value||!text)return; note.date=d.value; note.title=title; note.html=html; note.text=text; note.html_inline=richHtmlToInlineHtml(html); note.updatedAt=Date.now(); saveGeneralNotes(); generalNotes.editingId=null; renderGeneralNotes();});
+            detail.appendChild(form);
+          } else {
+            const notes = document.createElement('div'); notes.className = 'meeting-notes-rendered'; notes.innerHTML = note.html;
+            const controls = document.createElement('div'); controls.className = 'meeting-detail-controls';
+            const edit = document.createElement('button'); edit.type='button'; edit.className='meeting-link-btn'; edit.textContent='Edit'; edit.addEventListener('click',()=>{generalNotes.editingId=note.id; renderGeneralNotes();});
+            const big = document.createElement('button'); big.type='button'; big.className='meeting-link-btn'; big.textContent='Big edit'; big.addEventListener('click',()=>openGeneralNoteBigEdit(note.id));
+            const del = document.createElement('button'); del.type='button'; del.className='meeting-link-btn delete'; del.textContent='Delete'; del.addEventListener('click',()=>{generalNotes.items=generalNotes.items.filter((n)=>n.id!==note.id); if(generalNotes.expandedId===note.id)generalNotes.expandedId=null; saveGeneralNotes(); renderGeneralNotes();});
+            controls.append(edit,big,del);
+            detail.append(notes,controls);
+          }
+          li.appendChild(detail);
+        }
+        list.appendChild(li);
+      });
+      section.appendChild(list);
+      generalNotes.listEl.appendChild(section);
+    });
+  }
+
   function renderAll() {
+    renderDashboardHeading();
     if (!isAuthenticated) {
       renderSignedOutState();
       return;
     }
+    console.debug('[renderAll]', {
+      generalActions: lists.general.actions.length,
+      schedulingActions: lists.scheduling.actions.length,
+      bigTicketItems: bigTicket.items.length,
+      meetingNotes: meeting.items.length,
+      generalNotes: generalNotes.items.length,
+    });
     renderList(lists.general);
     renderList(lists.scheduling);
+    renderBigTicketItems();
     renderMeetings();
+    renderGeneralNotes();
+    renderCardCollapseState();
+    renderCollapseAllButton();
   }
 
   function addAction(list, rawHtml) {
@@ -1065,6 +1763,7 @@
       number: nextActionNumber,
       text,
       html,
+      html_inline: richHtmlToInlineHtml(html),
       createdAt: Date.now(),
       updatedAt: Date.now(),
       completed: false,
@@ -1098,7 +1797,206 @@
     });
     saveMeetings();
     renderMeetings();
+    activeMeetingBigEditDraft = null;
     return true;
+  }
+
+
+  function addBigTicketItem(rawHtml) {
+    const html = sanitizeRichHtml(rawHtml);
+    const text = htmlToPlainText(html);
+    if (!text) return false;
+    const now = Date.now();
+    bigTicket.items.unshift({ id: `ticket-${now}-${Math.random().toString(16).slice(2)}`, html, html_inline: richHtmlToInlineHtml(html), text, completed: false, createdAt: now, updatedAt: now });
+    saveBigTicketItems();
+    renderBigTicketItems();
+    return true;
+  }
+
+  function openBigTicketModal(id) {
+    const item = bigTicket.items.find((entry) => entry.id === id);
+    if (!item) return;
+    bigTicket.activeId = id;
+    bigTicketModalEditor.innerHTML = item.html;
+    bigTicketModal.hidden = false;
+    bigTicketModalEditor.focus();
+  }
+
+  function saveBigTicketModal() {
+    const item = bigTicket.items.find((entry) => entry.id === bigTicket.activeId);
+    if (!item) return false;
+    const html = sanitizeRichHtml(bigTicketModalEditor.innerHTML);
+    const text = htmlToPlainText(html);
+    if (!text) return false;
+    item.html = html;
+    item.text = text;
+    item.html_inline = richHtmlToInlineHtml(html);
+    item.updatedAt = Date.now();
+    saveBigTicketItems();
+    renderBigTicketItems();
+    return true;
+  }
+
+  function closeBigTicketModal(skipSave = false) {
+    if (!skipSave && bigTicket.activeId) saveBigTicketModal();
+    bigTicketModal.hidden = true;
+    bigTicket.activeId = null;
+  }
+
+  function addGeneralNote(dateRaw, titleRaw, htmlRaw) {
+    const title = titleRaw.trim();
+    const html = sanitizeRichHtml(htmlRaw);
+    const text = htmlToPlainText(html);
+    if (!dateRaw || !title || !text) return false;
+    const now = Date.now();
+    generalNotes.items.push({ id: `gn-${now}-${Math.random().toString(16).slice(2)}`, date: dateRaw, title, html, html_inline: richHtmlToInlineHtml(html), text, createdAt: now, updatedAt: now });
+    saveGeneralNotes();
+    renderGeneralNotes();
+    activeGeneralNoteBigEditDraft = null;
+    return true;
+  }
+
+  function getGeneralNoteById(id) {
+    return generalNotes.items.find((item) => item.id === id) || null;
+  }
+
+  function openGeneralNoteBigEdit(id) {
+    const item = getGeneralNoteById(id);
+    if (!item) return;
+    activeGeneralNoteBigEditId = id;
+    activeGeneralNoteBigEditDraft = { title: item.title, date: item.date, html: item.html };
+    generalNoteBigEditTitleInput.value = item.title;
+    generalNoteBigEditDateInput.value = item.date;
+    generalNoteBigEditEditor.innerHTML = item.html;
+    generalNoteBigEditModal.hidden = false;
+  }
+
+  function closeGeneralNoteBigEdit() {
+    if (activeGeneralNoteBigEditDraft) {
+      generalNoteBigEditTitleInput.value = activeGeneralNoteBigEditDraft.title;
+      generalNoteBigEditDateInput.value = activeGeneralNoteBigEditDraft.date;
+      generalNoteBigEditEditor.innerHTML = activeGeneralNoteBigEditDraft.html;
+    }
+    generalNoteBigEditModal.hidden = true;
+    activeGeneralNoteBigEditId = null;
+    activeGeneralNoteBigEditDraft = null;
+  }
+
+  function saveGeneralNoteBigEdit() {
+    const item = getGeneralNoteById(activeGeneralNoteBigEditId);
+    if (!item) return false;
+    const title = generalNoteBigEditTitleInput.value.trim();
+    const date = generalNoteBigEditDateInput.value;
+    const html = sanitizeRichHtml(generalNoteBigEditEditor.innerHTML);
+    const text = htmlToPlainText(html);
+    if (!title || !date || !text) return false;
+    item.title = title;
+    item.date = date;
+    item.html = html;
+    item.text = text;
+    item.html_inline = richHtmlToInlineHtml(html);
+    item.updatedAt = Date.now();
+    saveGeneralNotes();
+    renderGeneralNotes();
+    return true;
+  }
+
+
+  function fillSettingsForm(themeLike) {
+    const themeState = normalizeThemeState(themeLike || uiState.theme);
+    const theme = themeState.vars;
+    suppressThemePresetSync = true;
+    themePresetSelect.value = themeState.presetName;
+    dashboardTitleInput.value = uiState.dashboardTitle;
+    themeBannerBgInput.value = theme.bannerBg;
+    themeBannerFgInput.value = theme.bannerFg;
+    themePageBgInput.value = theme.pageBg;
+    themeCardHeaderBgInput.value = theme.cardHeaderBg;
+    themeCardHeaderFgInput.value = theme.cardHeaderFg;
+    suppressThemePresetSync = false;
+  }
+
+  function getThemeVarsFromSettingsForm() {
+    return normalizeTheme({
+      bannerBg: themeBannerBgInput.value,
+      bannerFg: themeBannerFgInput.value,
+      pageBg: themePageBgInput.value,
+      cardHeaderBg: themeCardHeaderBgInput.value,
+      cardHeaderFg: themeCardHeaderFgInput.value,
+    });
+  }
+
+  function getThemeFromSettingsForm() {
+    const vars = getThemeVarsFromSettingsForm();
+    const selectedPreset = themePresetSelect.value;
+    const presetName = selectedPreset === 'Custom' ? 'Custom' : resolveThemePresetName(vars) === selectedPreset ? selectedPreset : 'Custom';
+    return normalizeThemeState({ presetName, vars });
+  }
+
+  function previewSettingsTheme() {
+    settingsThemeDraft = getThemeFromSettingsForm();
+    applyTheme(settingsThemeDraft.vars);
+  }
+
+  function applyThemePresetFromSettings() {
+    if (suppressThemePresetSync) return;
+    const preset = themePresetSelect.value;
+    if (!THEMES[preset]) {
+      previewSettingsTheme();
+      return;
+    }
+    fillSettingsForm({ presetName: preset, vars: THEMES[preset] });
+    previewSettingsTheme();
+  }
+
+  function onThemeColorInputChange() {
+    if (suppressThemePresetSync) return;
+    if (themePresetSelect.value !== 'Custom') {
+      suppressThemePresetSync = true;
+      themePresetSelect.value = 'Custom';
+      suppressThemePresetSync = false;
+    }
+    previewSettingsTheme();
+  }
+
+  function openSettingsModal() {
+    settingsThemeSavedSnapshot = normalizeThemeState(uiState.theme);
+    fillSettingsForm(settingsThemeSavedSnapshot);
+    settingsThemeDraft = normalizeThemeState(settingsThemeSavedSnapshot);
+    applyTheme(settingsThemeDraft.vars);
+    settingsModal.hidden = false;
+    themePresetSelect.focus();
+  }
+
+  function closeSettingsModal({ revert = true } = {}) {
+    if (revert && settingsThemeSavedSnapshot) {
+      applyTheme(settingsThemeSavedSnapshot.vars);
+    }
+    settingsModal.hidden = true;
+    settingsThemeDraft = null;
+    settingsThemeSavedSnapshot = null;
+  }
+
+  function openImportModal() {
+    importForm.reset();
+    const defaultMode = importForm.querySelector('input[name="import-mode"][value="merge"]');
+    if (defaultMode) defaultMode.checked = true;
+    importModal.hidden = false;
+    importFileInput.focus();
+  }
+
+  function closeImportModal() {
+    importModal.hidden = true;
+    importForm.reset();
+    importFileInput.value = '';
+  }
+
+  function saveSettingsModal() {
+    uiState.theme = settingsThemeDraft ? normalizeThemeState(settingsThemeDraft) : getThemeFromSettingsForm();
+    uiState.dashboardTitle = dashboardTitleInput.value.trim() || DEFAULT_DASHBOARD_TITLE;
+    applyTheme(uiState.theme.vars);
+    saveUiState();
+    renderAll();
   }
 
   function modalStatusText(action) {
@@ -1144,6 +2042,7 @@
 
     action.html = html;
     action.text = text;
+    action.html_inline = richHtmlToInlineHtml(html);
     action.updatedAt = Date.now();
     saveList(activeModalContext.list);
     renderList(activeModalContext.list);
@@ -1229,19 +2128,33 @@
     if (!item) return;
     const date = new Date(item.datetime);
     activeMeetingBigEditId = item.id;
+    activeMeetingBigEditDraft = {
+      title: item.title,
+      date: dateToDateValue(date),
+      hour: String(date.getHours()).padStart(2, '0'),
+      minute: ALLOWED_MINUTES.includes(String(date.getMinutes()).padStart(2, '0')) ? String(date.getMinutes()).padStart(2, '0') : '00',
+      notesHtml: item.notesHtml,
+    };
     meetingBigEditTitleInput.value = item.title;
     meetingBigEditDateInput.value = dateToDateValue(date);
-    meetingBigEditHourInput.value = String(date.getHours()).padStart(2, '0');
-    const minute = String(date.getMinutes()).padStart(2, '0');
-    meetingBigEditMinuteInput.value = ALLOWED_MINUTES.includes(minute) ? minute : '00';
-    meetingBigEditNotesEditor.innerHTML = item.notesHtml;
+    meetingBigEditHourInput.value = activeMeetingBigEditDraft.hour;
+    meetingBigEditMinuteInput.value = activeMeetingBigEditDraft.minute;
+    meetingBigEditNotesEditor.innerHTML = activeMeetingBigEditDraft.notesHtml;
     meetingBigEditModal.hidden = false;
     meetingBigEditTitleInput.focus();
   }
 
   function closeMeetingBigEdit() {
+    if (activeMeetingBigEditDraft) {
+      meetingBigEditTitleInput.value = activeMeetingBigEditDraft.title;
+      meetingBigEditDateInput.value = activeMeetingBigEditDraft.date;
+      meetingBigEditHourInput.value = activeMeetingBigEditDraft.hour;
+      meetingBigEditMinuteInput.value = activeMeetingBigEditDraft.minute;
+      meetingBigEditNotesEditor.innerHTML = activeMeetingBigEditDraft.notesHtml;
+    }
     meetingBigEditModal.hidden = true;
     activeMeetingBigEditId = null;
+    activeMeetingBigEditDraft = null;
   }
 
   function saveMeetingBigEdit() {
@@ -1336,7 +2249,6 @@
     localStorage.setItem(CLOUD_LAST_PULL_KEY, syncedAt);
     markLastSynced(syncedAt, row.updated_at || syncedAt);
     if (!options.silentSuccess) {
-      setStatus('Synced', 'success');
     }
     return true;
   }
@@ -1381,7 +2293,6 @@
     localStorage.setItem(CLOUD_LAST_PUSH_KEY, nowIso);
     markLastSynced(nowIso, nowIso);
     if (!options.silentSuccess) {
-      setStatus('Synced', 'success');
     }
     return true;
   }
@@ -1416,8 +2327,7 @@
         }
       }
       if (!autosyncPending) {
-        setStatus('Synced', 'success');
-      }
+        }
     } finally {
       autosyncInFlight = false;
       setSyncIndicator(false);
@@ -1450,33 +2360,110 @@
     }
   }
 
-  async function importCloudBackup(file) {
-    if (!file || !cloud.signedInUser || cloud.busy) return;
+  function extractActionNumber(action) {
+    const asNumber = Number(action?.number);
+    if (Number.isInteger(asNumber)) return asNumber;
+    const idAsNumber = Number(action?.id);
+    return Number.isInteger(idAsNumber) ? idAsNumber : null;
+  }
+
+  function dedupeActionsByNumber(items) {
+    const byNumber = new Map();
+    items.forEach((item) => {
+      const normalized = normalizeAction(item);
+      if (!normalized) return;
+      const number = extractActionNumber(normalized);
+      if (!Number.isInteger(number)) return;
+      normalized.number = number;
+      byNumber.set(number, normalized);
+    });
+    return Array.from(byNumber.values());
+  }
+
+  function mergeById(currentItems, importedItems, normalizer) {
+    const merged = new Map();
+    currentItems.forEach((item) => {
+      const normalized = normalizer(item);
+      if (normalized?.id) merged.set(normalized.id, normalized);
+    });
+    importedItems.forEach((item) => {
+      const normalized = normalizer(item);
+      if (normalized?.id) merged.set(normalized.id, normalized);
+    });
+    return Array.from(merged.values());
+  }
+
+  function computeNextActionNumber(state) {
+    const numbers = [
+      ...state.generalActions.map((item) => extractActionNumber(item)).filter(Number.isInteger),
+      ...state.schedulingActions.map((item) => extractActionNumber(item)).filter(Number.isInteger),
+    ];
+    const maxNumber = numbers.length ? Math.max(...numbers) : DEFAULT_NEXT_NUMBER - 1;
+    return maxNumber + 1;
+  }
+
+  function mergeDashboardState(currentState, importedState) {
+    const merged = migrateState({
+      ...currentState,
+      generalActions: dedupeActionsByNumber([...currentState.generalActions, ...importedState.generalActions]),
+      schedulingActions: dedupeActionsByNumber([...currentState.schedulingActions, ...importedState.schedulingActions]),
+      bigTicketItems: mergeById(currentState.bigTicketItems, importedState.bigTicketItems, normalizeBigTicketItem),
+      meetingNotes: mergeById(currentState.meetingNotes, importedState.meetingNotes, normalizeMeeting),
+      generalNotes: mergeById(currentState.generalNotes, importedState.generalNotes, normalizeGeneralNote),
+      ui: {
+        collapsedCards: currentState.ui?.collapsedCards || importedState.ui?.collapsedCards || { ...collapsedCardsDefault },
+        collapsedGeneralNotesMonths: currentState.ui?.collapsedGeneralNotesMonths || importedState.ui?.collapsedGeneralNotesMonths || {},
+        theme: currentState.ui?.theme || importedState.ui?.theme || normalizeThemeState(defaultTheme),
+        dashboardTitle: currentState.ui?.dashboardTitle || importedState.ui?.dashboardTitle || DEFAULT_DASHBOARD_TITLE,
+      },
+      meetingNotesUIState: currentState.meetingNotesUIState || importedState.meetingNotesUIState || { collapsedMonths: {}, collapsedWeeks: {} },
+      stateVersion: LATEST_STATE_VERSION,
+    });
+    merged.nextActionNumber = computeNextActionNumber(merged);
+    return merged;
+  }
+
+  async function importCloudBackup(file, mode) {
+    if (!file || !cloud.signedInUser || cloud.busy || !mode) return false;
     setLoading(true, 'import');
     try {
       const text = await file.text();
       const parsed = JSON.parse(text);
       if (!parsed || typeof parsed !== 'object' || !parsed.state) {
         setStatus('Import failed: invalid backup format.', 'error');
-        return;
+        return false;
       }
 
-      const migrated = migrateState({
+      const importedState = migrateState({
         stateVersion: Number(parsed.stateVersion) || Number(parsed.state?.stateVersion) || 1,
         ...parsed.state,
       });
-      setLocalDashboardState(migrated);
+
+      let finalState;
+      if (mode === 'overwrite') {
+        const confirmed = window.confirm('This will replace all current data. Continue?');
+        if (!confirmed) return false;
+        finalState = migrateState(importedState);
+      } else {
+        finalState = mergeDashboardState(getLocalDashboardState(), importedState);
+      }
+      finalState.nextActionNumber = computeNextActionNumber(finalState);
+
+      setLocalDashboardState(finalState);
       const result = await pushCloudState({ silentSuccess: true });
       if (!result || result === 'conflict') {
-        setStatus('Import applied locally, cloud sync needs retry.', 'warning');
-        return;
+        setStatus(`Imported (${mode}) locally; cloud sync needs retry.`, 'warning');
+        return true;
       }
-      setStatus('Backup imported and synced', 'success');
-      showToast('Backup import complete', 'success');
+      const verb = mode === 'overwrite' ? 'overwrite' : 'merge';
+      setStatus(`Imported (${verb})`, 'success');
+      showToast(`Imported (${verb})`, 'success');
+      return true;
     } catch (error) {
       setStatus(`Import failed: ${error.message}`, 'error');
+      return false;
     } finally {
-      cloud.importInput.value = '';
+      importFileInput.value = '';
       setLoading(false);
     }
   }
@@ -1510,8 +2497,7 @@
           setLocalDashboardState(defaultState);
           await pushCloudState({ silentSuccess: true });
         }
-        setStatus('Synced', 'success');
-        if (cloud.signedInUser.email) {
+          if (cloud.signedInUser.email) {
           showToast(`Signed in as ${cloud.signedInUser.email}`, 'success');
         }
       } finally {
@@ -1529,10 +2515,7 @@
     cloud.signInBtn.addEventListener('click', signInWithPassword);
     cloud.signOutBtn.addEventListener('click', signOutCloud);
     cloud.exportBtn.addEventListener('click', exportCloudBackup);
-    cloud.importInput.addEventListener('change', (event) => {
-      const [file] = event.target.files || [];
-      importCloudBackup(file);
-    });
+    cloud.importBtn.addEventListener('click', openImportModal);
 
     const submitSignIn = (event) => {
       if (event.key === 'Enter') {
@@ -1570,6 +2553,47 @@
     });
   }
 
+  function bindCardToggleEvents() {
+    document.querySelectorAll('[data-card-toggle]').forEach((toggle) => {
+      toggle.addEventListener('click', () => {
+        const cardId = toggle.dataset.cardToggle;
+        uiState.collapsedCards[cardId] = !uiState.collapsedCards[cardId];
+        saveUiState();
+        renderCardCollapseState();
+        renderCollapseAllButton();
+      });
+    });
+  }
+
+  function bindBigTicketEvents() {
+    bigTicket.form.addEventListener('submit', (event) => {
+      event.preventDefault();
+      const added = addBigTicketItem(bigTicket.input.innerHTML);
+      if (!added) return;
+      bigTicket.input.innerHTML = '';
+      bigTicket.input.focus();
+    });
+
+    bigTicket.input.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter' && !event.shiftKey) {
+        event.preventDefault();
+        bigTicket.form.requestSubmit();
+      }
+    });
+  }
+
+  function bindGeneralNotesEvents() {
+    generalNotes.form.addEventListener('submit', (event) => {
+      event.preventDefault();
+      const added = addGeneralNote(generalNotes.dateInput.value, generalNotes.titleInput.value, generalNotes.editor.innerHTML);
+      if (!added) return;
+      generalNotes.form.reset();
+      generalNotes.editor.innerHTML = '';
+      generalNotes.dateInput.focus();
+    });
+  }
+
+
   populateHourOptions(meeting.hourInput);
   populateHourOptions(meetingBigEditHourInput);
   meeting.minuteInput.value = '00';
@@ -1580,6 +2604,10 @@
   bindEditorShortcuts(lists.scheduling.input);
   bindEditorShortcuts(meeting.notesEditor);
   bindEditorShortcuts(meetingBigEditNotesEditor);
+  bindEditorShortcuts(bigTicket.input);
+  bindEditorShortcuts(bigTicketModalEditor);
+  bindEditorShortcuts(generalNotes.editor);
+  bindEditorShortcuts(generalNoteBigEditEditor);
 
   modalSaveBtn.addEventListener('click', () => {
     if (persistModalChanges()) closeModal(true);
@@ -1602,12 +2630,72 @@
   });
 
   meetingBigEditClose.addEventListener('click', closeMeetingBigEdit);
+  meetingBigEditCancel.addEventListener('click', closeMeetingBigEdit);
   meetingBigEditBackdrop.addEventListener('click', closeMeetingBigEdit);
 
+  bigTicketModalSave.addEventListener('click', () => {
+    if (saveBigTicketModal()) closeBigTicketModal(true);
+  });
+  bigTicketModalClose.addEventListener('click', () => closeBigTicketModal());
+  bigTicketModalBackdrop.addEventListener('click', () => closeBigTicketModal());
+
+  generalNoteBigEditForm.addEventListener('submit', (event) => {
+    event.preventDefault();
+    if (saveGeneralNoteBigEdit()) closeGeneralNoteBigEdit();
+  });
+  generalNoteBigEditClose.addEventListener('click', closeGeneralNoteBigEdit);
+  generalNoteBigEditCancel.addEventListener('click', closeGeneralNoteBigEdit);
+  generalNoteBigEditBackdrop.addEventListener('click', closeGeneralNoteBigEdit);
+
   modalCloseBtn.addEventListener('click', () => closeModal());
+
+  settingsBtn.addEventListener('click', openSettingsModal);
+  cloud.collapseAllBtn.addEventListener('click', toggleAllCardsCollapse);
+  settingsForm.addEventListener('submit', (event) => {
+    event.preventDefault();
+    previewSettingsTheme();
+    saveSettingsModal();
+    closeSettingsModal({ revert: false });
+  });
+  themePresetSelect.addEventListener('change', applyThemePresetFromSettings);
+  [themeBannerBgInput, themeBannerFgInput, themePageBgInput, themeCardHeaderBgInput, themeCardHeaderFgInput]
+    .forEach((input) => input.addEventListener('input', onThemeColorInputChange));
+  settingsCancelBtn.addEventListener('click', () => closeSettingsModal());
+  settingsModalClose.addEventListener('click', () => closeSettingsModal());
+  settingsModalBackdrop.addEventListener('click', () => closeSettingsModal());
+  importForm.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const [file] = importFileInput.files || [];
+    const modeInput = importForm.querySelector('input[name="import-mode"]:checked');
+    if (!file || !modeInput?.value) {
+      setStatus('Select a file and import mode first.', 'warning');
+      return;
+    }
+    const imported = await importCloudBackup(file, modeInput.value);
+    if (imported) closeImportModal();
+  });
+  importCancelBtn.addEventListener('click', closeImportModal);
+  importModalClose.addEventListener('click', closeImportModal);
+  importModalBackdrop.addEventListener('click', closeImportModal);
   modalBackdrop.addEventListener('click', () => closeModal());
   window.addEventListener('keydown', (event) => {
     if (event.key !== 'Escape') return;
+    if (!importModal.hidden) {
+      closeImportModal();
+      return;
+    }
+    if (!settingsModal.hidden) {
+      closeSettingsModal();
+      return;
+    }
+    if (!generalNoteBigEditModal.hidden) {
+      closeGeneralNoteBigEdit();
+      return;
+    }
+    if (!bigTicketModal.hidden) {
+      closeBigTicketModal();
+      return;
+    }
     if (!meetingBigEditModal.hidden) {
       closeMeetingBigEdit();
       return;
@@ -1622,6 +2710,10 @@
   bindListEvents(lists.general);
   bindListEvents(lists.scheduling);
   bindMeetingEvents();
+  bindBigTicketEvents();
+  bindGeneralNotesEvents();
+  applyTheme(defaultTheme);
+  bindCardToggleEvents();
   bindCloudEvents();
   loadData();
   renderAll();
