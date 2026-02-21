@@ -113,9 +113,6 @@
     signedInDisplay: document.getElementById('cloud-signed-in-display'),
     signedInEmailEl: document.getElementById('cloud-signed-in-email'),
     statusEl: document.getElementById('cloud-status'),
-    metaEl: document.getElementById('cloud-meta'),
-    signedInAsEl: document.getElementById('cloud-signed-in-as'),
-    lastSyncedEl: document.getElementById('cloud-last-synced'),
     toastContainer: document.getElementById('toast-container'),
     signedInUser: null,
     busy: false,
@@ -596,10 +593,13 @@
 
   function updateCloudMeta() {
     const email = cloud.signedInUser?.email || '—';
-    cloud.signedInAsEl.textContent = `Signed in as: ${email}`;
-    cloud.signedInEmailEl.textContent = email;
+    if (cloud.signedInEmailEl) {
+      cloud.signedInEmailEl.textContent = email;
+    }
     const label = formatCloudTimestamp(cloud.lastSyncedAt) || 'Never';
-    cloud.lastSyncedEl.textContent = `Last synced: ${label}`;
+    if (cloud.signedInUser && !cloud.busy && !cloud.syncInFlight) {
+      setStatus(`Synced — Last synced: ${label}`, 'success', { toast: false });
+    }
   }
 
   function markLastSynced(timestamp, cloudUpdatedAt = null) {
@@ -623,13 +623,14 @@
     }, 3600);
   }
 
-  function setStatus(message, type = 'info') {
+  function setStatus(message, type = 'info', options = {}) {
     if (!cloud.statusEl) return;
     const normalizedType = ['info', 'success', 'warning', 'error', 'loading'].includes(type) ? type : 'info';
     const nextMessage = message || 'Ready';
     cloud.statusEl.textContent = nextMessage;
     cloud.statusEl.className = `cloud-status cloud-status-${normalizedType}`;
-    if (normalizedType !== 'loading') {
+    const shouldToast = options.toast !== false;
+    if (normalizedType !== 'loading' && shouldToast) {
       showToast(nextMessage, normalizedType === 'warning' ? 'warning' : normalizedType);
     }
   }
@@ -664,11 +665,9 @@
     cloud.exportBtn.hidden = !signedIn;
     cloud.importLabel.hidden = !signedIn;
     cloud.signedInDisplay.hidden = !signedIn;
+    cloud.emailInput.hidden = signedIn;
     cloud.passwordInput.hidden = signedIn;
-    cloud.statusEl.hidden = !cloud.busy && !cloud.syncInFlight;
-    cloud.metaEl.hidden = !signedIn;
-    cloud.signedInAsEl.hidden = true;
-    cloud.lastSyncedEl.hidden = !signedIn;
+    cloud.statusEl.hidden = false;
     cloud.exportBtn.disabled = cloud.busy || !signedIn;
     cloud.importLabel.classList.toggle('is-disabled', cloud.busy || !signedIn);
     cloud.signInBtn.disabled = cloud.busy || cloud.syncInFlight || signedIn;
@@ -680,8 +679,8 @@
       cloud.statusEl.classList.toggle('cloud-status-loading', true);
     }
 
-    if ((!cloud.statusEl.textContent || !cloud.statusEl.textContent.trim()) && !cloud.syncInFlight) {
-      setStatus('Ready', 'info');
+    if (!signedIn && !cloud.busy && !cloud.syncInFlight) {
+      setStatus('Ready', 'info', { toast: false });
     }
     updateCloudMeta();
   }
@@ -1728,7 +1727,6 @@
     localStorage.setItem(CLOUD_LAST_PULL_KEY, syncedAt);
     markLastSynced(syncedAt, row.updated_at || syncedAt);
     if (!options.silentSuccess) {
-      setStatus('Synced', 'success');
     }
     return true;
   }
@@ -1773,7 +1771,6 @@
     localStorage.setItem(CLOUD_LAST_PUSH_KEY, nowIso);
     markLastSynced(nowIso, nowIso);
     if (!options.silentSuccess) {
-      setStatus('Synced', 'success');
     }
     return true;
   }
@@ -1808,8 +1805,7 @@
         }
       }
       if (!autosyncPending) {
-        setStatus('Synced', 'success');
-      }
+        }
     } finally {
       autosyncInFlight = false;
       setSyncIndicator(false);
@@ -1902,8 +1898,7 @@
           setLocalDashboardState(defaultState);
           await pushCloudState({ silentSuccess: true });
         }
-        setStatus('Synced', 'success');
-        if (cloud.signedInUser.email) {
+          if (cloud.signedInUser.email) {
           showToast(`Signed in as ${cloud.signedInUser.email}`, 'success');
         }
       } finally {
