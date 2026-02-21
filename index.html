@@ -28,10 +28,6 @@
           </label>
         </div>
         <div id="cloud-status" class="cloud-status cloud-status-info" role="status" aria-live="polite">Ready</div>
-        <div id="cloud-meta" class="cloud-meta" aria-live="polite">
-          <span id="cloud-signed-in-as">Signed in as: —</span>
-          <span id="cloud-last-synced">Last synced: Never</span>
-        </div>
       </section>
     </header>
 
@@ -88,19 +84,19 @@
             </div>
             <div class="card-body" data-card-body="bigTicket">
               <div class="action-toolbar">
-                <form id="big-ticket-add-form" class="add-action-form" autocomplete="off">
+                <form id="big-ticket-add-form" class="add-action-form add-action-form-stacked" autocomplete="off">
                   <label class="visually-hidden" for="big-ticket-input">New big ticket item</label>
-                  <div class="compact-editor-wrap">
+                  <div class="add-action-input-row">
                     <div id="big-ticket-input" class="compact-rich-editor" contenteditable="true" role="textbox" aria-multiline="true" data-placeholder="Enter a big ticket item"></div>
-                    <div class="rtf-toolbar" data-editor-target="big-ticket-input" role="toolbar" aria-label="Big ticket formatting">
-                      <button type="button" data-command="bold" aria-label="Bold">B</button>
-                      <button type="button" data-command="italic" aria-label="Italic">I</button>
-                      <button type="button" data-command="underline" aria-label="Underline">U</button>
-                      <button type="button" data-command="insertUnorderedList" aria-label="Bulleted list">•</button>
-                      <button type="button" data-command="insertOrderedList" aria-label="Numbered list">1.</button>
-                    </div>
+                    <button type="submit" aria-label="Add big ticket item">+</button>
                   </div>
-                  <button type="submit" aria-label="Add big ticket item">+</button>
+                  <div class="rtf-toolbar" data-editor-target="big-ticket-input" role="toolbar" aria-label="Big ticket formatting">
+                    <button type="button" data-command="bold" aria-label="Bold">B</button>
+                    <button type="button" data-command="italic" aria-label="Italic">I</button>
+                    <button type="button" data-command="underline" aria-label="Underline">U</button>
+                    <button type="button" data-command="insertUnorderedList" aria-label="Bulleted list">•</button>
+                    <button type="button" data-command="insertOrderedList" aria-label="Numbered list">1.</button>
+                  </div>
                 </form>
               </div>
               <ul id="big-ticket-list" class="action-list" aria-label="Big ticket items"></ul>
@@ -186,6 +182,7 @@
                   </div>
 
                   <label class="visually-hidden" for="meeting-notes-editor">Meeting notes</label>
+                  <div id="meeting-notes-editor" class="meeting-notes-editor" contenteditable="true" role="textbox" aria-multiline="true" data-placeholder="Add notes"></div>
                   <div class="rtf-toolbar" data-editor-target="meeting-notes-editor" role="toolbar" aria-label="Meeting notes formatting">
                     <button type="button" data-command="bold" aria-label="Bold">B</button>
                     <button type="button" data-command="italic" aria-label="Italic">I</button>
@@ -193,7 +190,6 @@
                     <button type="button" data-command="insertUnorderedList" aria-label="Bulleted list">•</button>
                     <button type="button" data-command="insertOrderedList" aria-label="Numbered list">1.</button>
                   </div>
-                  <div id="meeting-notes-editor" class="meeting-notes-editor" contenteditable="true" role="textbox" aria-multiline="true" data-placeholder="Add notes"></div>
                   <button type="submit" aria-label="Add meeting">+</button>
                 </form>
               </div>
@@ -218,8 +214,12 @@
             <div class="card-body" data-card-body="generalNotes">
               <div class="meeting-toolbar general-notes-toolbar">
                 <form id="general-notes-add-form" class="meeting-add-form" autocomplete="off">
-                  <input id="general-note-date-input" type="date" required />
                   <input id="general-note-title-input" type="text" maxlength="200" placeholder="Title" required />
+                  <div class="general-note-date-row">
+                    <input id="general-note-date-input" type="date" required />
+                    <button type="submit" aria-label="Add general note">+</button>
+                  </div>
+                  <div id="general-note-editor" class="meeting-notes-editor" contenteditable="true" role="textbox" aria-multiline="true" data-placeholder="Add a general note"></div>
                   <div class="rtf-toolbar" data-editor-target="general-note-editor" role="toolbar" aria-label="General notes formatting">
                     <button type="button" data-command="bold" aria-label="Bold">B</button>
                     <button type="button" data-command="italic" aria-label="Italic">I</button>
@@ -227,8 +227,6 @@
                     <button type="button" data-command="insertUnorderedList" aria-label="Bulleted list">•</button>
                     <button type="button" data-command="insertOrderedList" aria-label="Numbered list">1.</button>
                   </div>
-                  <div id="general-note-editor" class="meeting-notes-editor" contenteditable="true" role="textbox" aria-multiline="true" data-placeholder="Add a general note"></div>
-                  <button type="submit" aria-label="Add general note">+</button>
                 </form>
               </div>
 
