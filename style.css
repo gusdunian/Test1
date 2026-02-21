@@ -283,6 +283,11 @@ body { margin: 0; font-family: Inter, -apple-system, BlinkMacSystemFont, 'Segoe 
 .action-input-buttons { display: flex; align-items: stretch; gap: 0.35rem; }
 .action-input-buttons > button { min-width: 2rem; padding: 0.25rem 0.5rem; }
 .action-input-buttons > .subtle-button { margin-left: 0; }
+
+.person-filter-row { display: inline-flex; align-items: center; gap: 0.35rem; font-size: 0.78rem; color: #475569; }
+.person-filter-row label { font-weight: 600; }
+.person-filter-select { border: 1px solid var(--border); border-radius: 6px; padding: 0.16rem 0.3rem; font: inherit; font-size: 0.78rem; max-width: 9rem; }
+.person-filter-count { font-size: 0.75rem; color: #64748b; min-height: 1em; }
 .add-action-input-row { display: flex; align-items: flex-end; gap: 0.4rem; min-width: 0; }
 .add-action-form-stacked { display: grid; grid-template-columns: minmax(0, 1fr); gap: 0.25rem; align-items: initial; }
 .add-action-form-stacked .add-action-input-row .compact-rich-editor { flex: 1; }
