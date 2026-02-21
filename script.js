@@ -13,6 +13,11 @@
   const SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_QNIuyXbtKQ_1-1NnU1J4pA_53Jckpes';
   const CLOUD_LAST_PUSH_KEY = 'lastPushAt';
   const CLOUD_LAST_PULL_KEY = 'lastPullAt';
+  const CLOUD_LAST_SYNCED_AT_KEY = 'lastSyncedAt';
+  const CLOUD_LAST_UPDATED_AT_KEY = 'lastCloudUpdatedAt';
+  const LOCAL_STATE_VERSION_KEY = 'dashboardStateVersion';
+  const LATEST_STATE_VERSION = 1;
+  const AUTOSYNC_DEBOUNCE_MS = 2000;
 
   const { createClient } = supabase;
   const sb = createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
@@ -36,6 +41,9 @@
   const meetingBigEditHourInput = document.getElementById('meeting-big-edit-hour-input');
   const meetingBigEditMinuteInput = document.getElementById('meeting-big-edit-minute-input');
   const meetingBigEditNotesEditor = document.getElementById('meeting-big-edit-notes-editor');
+  const mainContainer = document.getElementById('main-content');
+  const columnsSection = document.querySelector('.columns');
+  const signedOutMessage = document.getElementById('signed-out-message');
 
   const meeting = {
     items: [],
@@ -56,13 +64,22 @@
     passwordInput: document.getElementById('cloud-password-input'),
     signInBtn: document.getElementById('cloud-sign-in-btn'),
     signOutBtn: document.getElementById('cloud-sign-out-btn'),
-    pushBtn: document.getElementById('cloud-push-btn'),
-    pullBtn: document.getElementById('cloud-pull-btn'),
+    exportBtn: document.getElementById('cloud-export-btn'),
+    importLabel: document.getElementById('cloud-import-label'),
+    importInput: document.getElementById('cloud-import-input'),
+    signedInDisplay: document.getElementById('cloud-signed-in-display'),
+    signedInEmailEl: document.getElementById('cloud-signed-in-email'),
     statusEl: document.getElementById('cloud-status'),
+    metaEl: document.getElementById('cloud-meta'),
+    signedInAsEl: document.getElementById('cloud-signed-in-as'),
+    lastSyncedEl: document.getElementById('cloud-last-synced'),
     toastContainer: document.getElementById('toast-container'),
     signedInUser: null,
     busy: false,
     loadingContext: '',
+    syncInFlight: false,
+    lastCloudUpdatedAt: localStorage.getItem(CLOUD_LAST_UPDATED_AT_KEY) || null,
+    lastSyncedAt: localStorage.getItem(CLOUD_LAST_SYNCED_AT_KEY) || null,
   };
 
   const lists = {
@@ -90,6 +107,10 @@
   let activeModalContext = null;
   let activeMeetingBigEditId = null;
   let isAuthenticated = false;
+  let suppressAutosync = false;
+  let autosyncTimer = null;
+  let autosyncPending = false;
+  let autosyncInFlight = false;
 
   function escapeHtml(text) {
     return String(text || '')
@@ -288,18 +309,23 @@
 
   function saveList(list) {
     localStorage.setItem(list.key, JSON.stringify(list.actions));
+    if (!suppressAutosync) requestAutosync();
   }
 
   function saveMeetings() {
     localStorage.setItem(MEETING_STORAGE_KEY, JSON.stringify(meeting.items));
+    if (!suppressAutosync) requestAutosync();
   }
 
   function saveMeetingUIState() {
     localStorage.setItem(MEETING_UI_STORAGE_KEY, JSON.stringify(meeting.uiState));
+    if (!suppressAutosync) requestAutosync();
   }
 
   function saveNextNumber() {
     localStorage.setItem(NEXT_NUMBER_STORAGE_KEY, String(nextActionNumber));
+    localStorage.setItem(LOCAL_STATE_VERSION_KEY, String(LATEST_STATE_VERSION));
+    if (!suppressAutosync) requestAutosync();
   }
 
   function loadList(list) {
@@ -361,39 +387,99 @@
     }
   }
 
+  function migrateState(rawState) {
+    const incoming = rawState && typeof rawState === 'object' ? rawState : {};
+    const versionValue = Number(incoming.stateVersion);
+    const baseState = {
+      stateVersion: Number.isInteger(versionValue) && versionValue > 0 ? versionValue : 1,
+      generalActions: Array.isArray(incoming.generalActions) ? incoming.generalActions.map(normalizeAction).filter(Boolean) : [],
+      schedulingActions: Array.isArray(incoming.schedulingActions) ? incoming.schedulingActions.map(normalizeAction).filter(Boolean) : [],
+      meetingNotes: Array.isArray(incoming.meetingNotes) ? incoming.meetingNotes.map(normalizeMeeting).filter(Boolean) : [],
+      meetingNotesUIState: incoming.meetingNotesUIState && typeof incoming.meetingNotesUIState === 'object'
+        ? {
+          collapsedMonths: incoming.meetingNotesUIState.collapsedMonths && typeof incoming.meetingNotesUIState.collapsedMonths === 'object' ? incoming.meetingNotesUIState.collapsedMonths : {},
+          collapsedWeeks: incoming.meetingNotesUIState.collapsedWeeks && typeof incoming.meetingNotesUIState.collapsedWeeks === 'object' ? incoming.meetingNotesUIState.collapsedWeeks : {},
+        }
+        : { collapsedMonths: {}, collapsedWeeks: {} },
+      nextActionNumber: Number.isInteger(Number(incoming.nextActionNumber)) && Number(incoming.nextActionNumber) > 0
+        ? Number(incoming.nextActionNumber)
+        : DEFAULT_NEXT_NUMBER,
+    };
+
+    if (baseState.stateVersion < 1) {
+      baseState.stateVersion = 1;
+    }
+
+    if (baseState.stateVersion < LATEST_STATE_VERSION) {
+      // Future migrations can be chained here.
+      baseState.stateVersion = LATEST_STATE_VERSION;
+    }
+
+    const highest = Math.max(DEFAULT_NEXT_NUMBER - 1, ...baseState.generalActions.map((i) => i.number), ...baseState.schedulingActions.map((i) => i.number));
+    if (baseState.nextActionNumber <= highest) {
+      baseState.nextActionNumber = highest + 1;
+    }
+
+    return baseState;
+  }
+
+  function withAutosyncSuppressed(callback) {
+    suppressAutosync = true;
+    try {
+      return callback();
+    } finally {
+      suppressAutosync = false;
+    }
+  }
+
   function getLocalDashboardState() {
-    return {
+    return migrateState({
+      stateVersion: Number(localStorage.getItem(LOCAL_STATE_VERSION_KEY)) || LATEST_STATE_VERSION,
       generalActions: parseStoredJson(localStorage.getItem(GENERAL_STORAGE_KEY), []),
       schedulingActions: parseStoredJson(localStorage.getItem(SCHEDULING_STORAGE_KEY), []),
       meetingNotes: parseStoredJson(localStorage.getItem(MEETING_STORAGE_KEY), []),
       meetingNotesUIState: parseStoredJson(localStorage.getItem(MEETING_UI_STORAGE_KEY), { collapsedMonths: {}, collapsedWeeks: {} }),
       nextActionNumber: Number(localStorage.getItem(NEXT_NUMBER_STORAGE_KEY)) || DEFAULT_NEXT_NUMBER,
-    };
+    });
   }
 
   function setLocalDashboardState(stateObj) {
-    const state = stateObj && typeof stateObj === 'object' ? stateObj : {};
-    localStorage.setItem(GENERAL_STORAGE_KEY, JSON.stringify(Array.isArray(state.generalActions) ? state.generalActions : []));
-    localStorage.setItem(SCHEDULING_STORAGE_KEY, JSON.stringify(Array.isArray(state.schedulingActions) ? state.schedulingActions : []));
-    localStorage.setItem(MEETING_STORAGE_KEY, JSON.stringify(Array.isArray(state.meetingNotes) ? state.meetingNotes : []));
-
-    const uiState = state.meetingNotesUIState && typeof state.meetingNotesUIState === 'object'
-      ? state.meetingNotesUIState
-      : { collapsedMonths: {}, collapsedWeeks: {} };
-    localStorage.setItem(MEETING_UI_STORAGE_KEY, JSON.stringify(uiState));
-
-    const nextNumber = Number(state.nextActionNumber);
-    localStorage.setItem(NEXT_NUMBER_STORAGE_KEY, String(Number.isInteger(nextNumber) && nextNumber > 0 ? nextNumber : DEFAULT_NEXT_NUMBER));
-
-    loadData();
-    renderAll();
+    const state = migrateState(stateObj);
+    withAutosyncSuppressed(() => {
+      localStorage.setItem(GENERAL_STORAGE_KEY, JSON.stringify(state.generalActions));
+      localStorage.setItem(SCHEDULING_STORAGE_KEY, JSON.stringify(state.schedulingActions));
+      localStorage.setItem(MEETING_STORAGE_KEY, JSON.stringify(state.meetingNotes));
+      localStorage.setItem(MEETING_UI_STORAGE_KEY, JSON.stringify(state.meetingNotesUIState));
+      localStorage.setItem(NEXT_NUMBER_STORAGE_KEY, String(state.nextActionNumber));
+      localStorage.setItem(LOCAL_STATE_VERSION_KEY, String(state.stateVersion || LATEST_STATE_VERSION));
+      loadData();
+      renderAll();
+    });
   }
 
   function formatCloudTimestamp(value) {
     if (!value) return null;
     const parsed = new Date(value);
     if (Number.isNaN(parsed.getTime())) return null;
-    return parsed.toLocaleTimeString('en-GB', { hour12: false });
+    return parsed.toLocaleString('en-GB', { hour12: false });
+  }
+
+  function updateCloudMeta() {
+    const email = cloud.signedInUser?.email || '—';
+    cloud.signedInAsEl.textContent = `Signed in as: ${email}`;
+    cloud.signedInEmailEl.textContent = email;
+    const label = formatCloudTimestamp(cloud.lastSyncedAt) || 'Never';
+    cloud.lastSyncedEl.textContent = `Last synced: ${label}`;
+  }
+
+  function markLastSynced(timestamp, cloudUpdatedAt = null) {
+    cloud.lastSyncedAt = timestamp || new Date().toISOString();
+    localStorage.setItem(CLOUD_LAST_SYNCED_AT_KEY, cloud.lastSyncedAt);
+    if (cloudUpdatedAt) {
+      cloud.lastCloudUpdatedAt = cloudUpdatedAt;
+      localStorage.setItem(CLOUD_LAST_UPDATED_AT_KEY, cloudUpdatedAt);
+    }
+    updateCloudMeta();
   }
 
   function showToast(message, type = 'info') {
@@ -426,46 +512,55 @@
     if (!isLoading) return;
     const label = {
       signIn: 'Signing in…',
-      push: 'Pushing to cloud…',
-      pull: 'Pulling from cloud…',
       authLoad: 'Loading from cloud…',
+      export: 'Preparing backup export…',
+      import: 'Importing backup…',
     }[context] || 'Loading…';
     setStatus(label, 'loading');
+  }
+
+  function setSyncIndicator(isSyncing) {
+    cloud.syncInFlight = Boolean(isSyncing);
+    updateCloudUi();
+    if (isSyncing) {
+      setStatus('Syncing…', 'loading');
+    }
   }
 
   function updateCloudUi() {
     const signedIn = Boolean(cloud.signedInUser);
     cloud.signOutBtn.hidden = !signedIn;
     cloud.signInBtn.hidden = signedIn;
-    cloud.pushBtn.hidden = !signedIn;
-    cloud.pullBtn.hidden = !signedIn;
-    cloud.pushBtn.disabled = cloud.busy || !signedIn;
-    cloud.pullBtn.disabled = cloud.busy || !signedIn;
-    cloud.signInBtn.disabled = cloud.busy;
-    cloud.signOutBtn.disabled = cloud.busy;
-    cloud.emailInput.disabled = cloud.busy || signedIn;
-    cloud.passwordInput.disabled = cloud.busy || signedIn;
+    cloud.exportBtn.hidden = !signedIn;
+    cloud.importLabel.hidden = !signedIn;
+    cloud.signedInDisplay.hidden = !signedIn;
+    cloud.passwordInput.hidden = signedIn;
+    cloud.statusEl.hidden = !cloud.busy && !cloud.syncInFlight;
+    cloud.metaEl.hidden = !signedIn;
+    cloud.signedInAsEl.hidden = true;
+    cloud.lastSyncedEl.hidden = !signedIn;
+    cloud.exportBtn.disabled = cloud.busy || !signedIn;
+    cloud.importLabel.classList.toggle('is-disabled', cloud.busy || !signedIn);
+    cloud.signInBtn.disabled = cloud.busy || cloud.syncInFlight || signedIn;
+    cloud.signOutBtn.disabled = cloud.busy || !signedIn;
+    cloud.emailInput.disabled = cloud.busy || signedIn || cloud.syncInFlight;
+    cloud.passwordInput.disabled = cloud.busy || cloud.syncInFlight || signedIn;
 
-    if (cloud.busy || cloud.loadingContext) return;
-    if (!cloud.statusEl.textContent.trim()) {
+    if (cloud.busy || cloud.loadingContext || cloud.syncInFlight) {
+      cloud.statusEl.classList.toggle('cloud-status-loading', true);
+    }
+
+    if ((!cloud.statusEl.textContent || !cloud.statusEl.textContent.trim()) && !cloud.syncInFlight) {
       setStatus('Ready', 'info');
     }
+    updateCloudMeta();
   }
 
   function renderSignedOutState() {
     [lists.general, lists.scheduling].forEach((list) => {
       list.listEl.innerHTML = '';
-      const empty = document.createElement('li');
-      empty.className = 'coming-soon signed-out-placeholder';
-      empty.textContent = 'Sign in to view your dashboard.';
-      list.listEl.appendChild(empty);
     });
-
     meeting.listEl.innerHTML = '';
-    const emptyMeeting = document.createElement('p');
-    emptyMeeting.className = 'meeting-empty signed-out-placeholder';
-    emptyMeeting.textContent = 'Sign in to view your dashboard.';
-    meeting.listEl.appendChild(emptyMeeting);
   }
 
   function applyAuthUiState(options = {}) {
@@ -479,6 +574,14 @@
     meeting.form.hidden = !signedIn;
 
     updateCloudUi();
+
+    mainContainer.classList.toggle('is-signed-out', !signedIn);
+    if (columnsSection) {
+      columnsSection.hidden = !signedIn;
+    }
+    if (signedOutMessage) {
+      signedOutMessage.hidden = signedIn;
+    }
 
     if (!signedIn) {
       renderSignedOutState();
@@ -499,63 +602,38 @@
   }
 
   function emptyDashboardState() {
-    return {
+    return migrateState({
+      stateVersion: LATEST_STATE_VERSION,
       generalActions: [],
       schedulingActions: [],
       meetingNotes: [],
       meetingNotesUIState: { collapsedMonths: {}, collapsedWeeks: {} },
       nextActionNumber: DEFAULT_NEXT_NUMBER,
-    };
-  }
-
-  async function handleAuthStateChange(event, session) {
-    cloud.signedInUser = session?.user || null;
-    applyAuthUiState({ deferRender: event === 'SIGNED_IN' || event === 'INITIAL_SESSION' });
-
-    if (!cloud.signedInUser) {
-      if (event === 'SIGNED_OUT') {
-        setStatus('Signed out', 'info');
-      }
-      return;
-    }
-
-    if (event === 'SIGNED_IN' || event === 'INITIAL_SESSION') {
-      setStatus('Loading from cloud…', 'loading');
-      const loaded = await pullCloudState({ silentNoData: true, context: 'authLoad' });
-      if (!loaded) {
-        setLocalDashboardState(emptyDashboardState());
-      }
-      setStatus('Cloud loaded', 'success');
-      if (cloud.signedInUser.email) {
-        showToast(`Signed in as ${cloud.signedInUser.email}`, 'success');
-      }
-    }
-  }
-
-  async function initializeAuth() {
-    const { data: { session } } = await sb.auth.getSession();
-    await handleAuthStateChange('INITIAL_SESSION', session || null);
+    });
   }
 
   function loadData() {
-    const storedNext = Number(localStorage.getItem(NEXT_NUMBER_STORAGE_KEY));
-    if (Number.isInteger(storedNext) && storedNext > 0) nextActionNumber = storedNext;
+    withAutosyncSuppressed(() => {
+      const storedNext = Number(localStorage.getItem(NEXT_NUMBER_STORAGE_KEY));
+      if (Number.isInteger(storedNext) && storedNext > 0) nextActionNumber = storedNext;
 
-    migrateLegacyGeneralData();
-    loadList(lists.general);
-    loadList(lists.scheduling);
-    loadMeetings();
-    loadMeetingUIState();
+      migrateLegacyGeneralData();
+      loadList(lists.general);
+      loadList(lists.scheduling);
+      loadMeetings();
+      loadMeetingUIState();
 
-    const highest = Math.max(DEFAULT_NEXT_NUMBER - 1, ...lists.general.actions.map((i) => i.number), ...lists.scheduling.actions.map((i) => i.number));
-    if (nextActionNumber <= highest) {
-      nextActionNumber = highest + 1;
-      saveNextNumber();
-    }
+      const highest = Math.max(DEFAULT_NEXT_NUMBER - 1, ...lists.general.actions.map((i) => i.number), ...lists.scheduling.actions.map((i) => i.number));
+      if (nextActionNumber <= highest) {
+        nextActionNumber = highest + 1;
+        saveNextNumber();
+      }
 
-    saveList(lists.general);
-    saveList(lists.scheduling);
-    saveMeetings();
+      localStorage.setItem(LOCAL_STATE_VERSION_KEY, String(LATEST_STATE_VERSION));
+      saveList(lists.general);
+      saveList(lists.scheduling);
+      saveMeetings();
+    });
   }
 
   function sortNewestFirst(a, b) {
@@ -1197,7 +1275,7 @@
 
     setLoading(true, 'signIn');
     try {
-      const { data, error } = await sb.auth.signInWithPassword({ email, password });
+      const { error } = await sb.auth.signInWithPassword({ email, password });
       if (error) {
         setStatus(`Sign in failed: ${error.message}`, 'error');
         return;
@@ -1209,93 +1287,252 @@
   }
 
   async function signOutCloud() {
-    cloud.signedInUser = null;
-    applyAuthUiState();
+    if (cloud.busy || !cloud.signedInUser) return;
+    setLoading(true, 'authSignOut');
     const { error } = await sb.auth.signOut();
     if (error) {
       setStatus(`Sign out failed: ${error.message}`, 'error');
-      return;
     }
-    setStatus('Signed out', 'info');
+    setLoading(false);
   }
 
-  async function pushCloudState() {
-    if (cloud.busy) return;
-    setLoading(true, 'push');
-    try {
-      const { data } = await sb.auth.getUser();
-      const user = data?.user;
-      if (!user) {
-        cloud.signedInUser = null;
-        setStatus('Please sign in first.', 'error');
-        return false;
-      }
+  async function fetchCloudStateRow(userId) {
+    const { data, error } = await sb.from('dashboard_state')
+      .select('state, updated_at')
+      .eq('user_id', userId)
+      .maybeSingle();
 
-      const state = getLocalDashboardState();
-      const nowIso = new Date().toISOString();
-      const { error } = await sb.from('dashboard_state').upsert({
-        user_id: user.id,
-        state,
-        updated_at: nowIso,
-      });
-
-      if (error) {
-        setStatus(`Push failed: ${error.message}`, 'error');
-        return;
-      }
-
-      localStorage.setItem(CLOUD_LAST_PUSH_KEY, nowIso);
-      const label = formatCloudTimestamp(nowIso) || nowIso;
-      setStatus(`Push successful (${label})`, 'success');
-    } finally {
-      setLoading(false);
+    if (error) {
+      setStatus(`Cloud load failed: ${error.message}`, 'error');
+      return null;
     }
+    return data || null;
   }
 
   async function pullCloudState(options = {}) {
-    if (cloud.busy) return;
-    setLoading(true, options.context || 'pull');
+    const user = cloud.signedInUser;
+    if (!user) {
+      setStatus('Please sign in first.', 'error');
+      return false;
+    }
+
+    const row = await fetchCloudStateRow(user.id);
+    if (row === null) {
+      if (!options.silentNoData) {
+        setStatus('No cloud data found.', 'warning');
+      }
+      return false;
+    }
+
+    if (!row.state) {
+      if (!options.silentNoData) {
+        setStatus('No cloud data found.', 'warning');
+      }
+      return false;
+    }
+
+    setLocalDashboardState(row.state);
+    const syncedAt = new Date().toISOString();
+    localStorage.setItem(CLOUD_LAST_PULL_KEY, syncedAt);
+    markLastSynced(syncedAt, row.updated_at || syncedAt);
+    if (!options.silentSuccess) {
+      setStatus('Synced', 'success');
+    }
+    return true;
+  }
+
+  async function pushCloudState(options = {}) {
+    const user = cloud.signedInUser;
+    if (!user) {
+      setStatus('Please sign in first.', 'error');
+      return false;
+    }
+
+    const { data: freshMeta, error: metaError } = await sb.from('dashboard_state')
+      .select('updated_at')
+      .eq('user_id', user.id)
+      .maybeSingle();
+
+    if (metaError) {
+      setStatus(`Sync check failed: ${metaError.message}`, 'error');
+      return false;
+    }
+
+    const remoteUpdatedAt = freshMeta?.updated_at || null;
+    if (remoteUpdatedAt && cloud.lastCloudUpdatedAt && new Date(remoteUpdatedAt).getTime() > new Date(cloud.lastCloudUpdatedAt).getTime()) {
+      showToast('Cloud updated elsewhere, reloading latest', 'warning');
+      await pullCloudState({ silentSuccess: true });
+      return 'conflict';
+    }
+
+    const state = migrateState(getLocalDashboardState());
+    const nowIso = new Date().toISOString();
+    const { error } = await sb.from('dashboard_state').upsert({
+      user_id: user.id,
+      state,
+      updated_at: nowIso,
+    });
+
+    if (error) {
+      setStatus(`Sync failed: ${error.message}`, 'error');
+      return false;
+    }
+
+    localStorage.setItem(CLOUD_LAST_PUSH_KEY, nowIso);
+    markLastSynced(nowIso, nowIso);
+    if (!options.silentSuccess) {
+      setStatus('Synced', 'success');
+    }
+    return true;
+  }
+
+  function requestAutosync() {
+    if (suppressAutosync || !isAuthenticated || !cloud.signedInUser) return;
+    autosyncPending = true;
+    if (autosyncTimer) {
+      window.clearTimeout(autosyncTimer);
+    }
+    autosyncTimer = window.setTimeout(() => {
+      autosyncTimer = null;
+      runAutosync().catch((error) => {
+        setStatus(`Sync failed: ${error.message}`, 'error');
+      });
+    }, AUTOSYNC_DEBOUNCE_MS);
+  }
+
+  async function runAutosync() {
+    if (autosyncInFlight || !cloud.signedInUser) return;
+    autosyncInFlight = true;
+    setSyncIndicator(true);
     try {
-      const { data: userData } = await sb.auth.getUser();
-      const user = userData?.user;
-      if (!user) {
-        cloud.signedInUser = null;
-        setStatus('Please sign in first.', 'error');
-        return false;
-      }
-
-      const { data, error } = await sb.from('dashboard_state')
-        .select('state, updated_at')
-        .eq('user_id', user.id)
-        .single();
-
-      if (error) {
-        if (error.code === 'PGRST116') {
-          if (!options.silentNoData) {
-            setStatus('No cloud data yet. Push first.', 'warning');
-          }
-          return false;
+      while (autosyncPending) {
+        autosyncPending = false;
+        const result = await pushCloudState({ silentSuccess: true });
+        if (result === 'conflict') {
+          continue;
         }
-        setStatus(`Pull failed: ${error.message}`, 'error');
-        return false;
+        if (!result) {
+          break;
+        }
       }
+      if (!autosyncPending) {
+        setStatus('Synced', 'success');
+      }
+    } finally {
+      autosyncInFlight = false;
+      setSyncIndicator(false);
+    }
+  }
 
-      setLocalDashboardState(data.state || {});
-      const pulledAt = new Date().toISOString();
-      localStorage.setItem(CLOUD_LAST_PULL_KEY, pulledAt);
-      const label = formatCloudTimestamp(data.updated_at || pulledAt) || data.updated_at || pulledAt;
-      setStatus(`Pull successful (${label})`, 'success');
-      return true;
+  async function exportCloudBackup() {
+    if (!cloud.signedInUser || cloud.busy) return;
+    setLoading(true, 'export');
+    try {
+      const row = await fetchCloudStateRow(cloud.signedInUser.id);
+      const sourceState = row?.state ? migrateState(row.state) : getLocalDashboardState();
+      const payload = {
+        exportedAt: new Date().toISOString(),
+        stateVersion: sourceState.stateVersion || LATEST_STATE_VERSION,
+        state: sourceState,
+      };
+      const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement('a');
+      anchor.href = url;
+      anchor.download = `dashboard-backup-${new Date().toISOString().slice(0, 19).replace(/[T:]/g, '-')}.json`;
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      URL.revokeObjectURL(url);
+      setStatus('Backup exported', 'success');
     } finally {
       setLoading(false);
     }
+  }
+
+  async function importCloudBackup(file) {
+    if (!file || !cloud.signedInUser || cloud.busy) return;
+    setLoading(true, 'import');
+    try {
+      const text = await file.text();
+      const parsed = JSON.parse(text);
+      if (!parsed || typeof parsed !== 'object' || !parsed.state) {
+        setStatus('Import failed: invalid backup format.', 'error');
+        return;
+      }
+
+      const migrated = migrateState({
+        stateVersion: Number(parsed.stateVersion) || Number(parsed.state?.stateVersion) || 1,
+        ...parsed.state,
+      });
+      setLocalDashboardState(migrated);
+      const result = await pushCloudState({ silentSuccess: true });
+      if (!result || result === 'conflict') {
+        setStatus('Import applied locally, cloud sync needs retry.', 'warning');
+        return;
+      }
+      setStatus('Backup imported and synced', 'success');
+      showToast('Backup import complete', 'success');
+    } catch (error) {
+      setStatus(`Import failed: ${error.message}`, 'error');
+    } finally {
+      cloud.importInput.value = '';
+      setLoading(false);
+    }
+  }
+
+  async function handleAuthStateChange(event, session) {
+    cloud.signedInUser = session?.user || null;
+    applyAuthUiState({ deferRender: event === 'SIGNED_IN' || event === 'INITIAL_SESSION' });
+
+    if (!cloud.signedInUser) {
+      autosyncPending = false;
+      if (autosyncTimer) {
+        window.clearTimeout(autosyncTimer);
+        autosyncTimer = null;
+      }
+      setLoading(false);
+      if (event === 'SIGNED_OUT') {
+        setStatus('Signed out', 'info');
+      }
+      return;
+    }
+
+    if (event === 'SIGNED_IN' || event === 'INITIAL_SESSION') {
+      setLoading(true, 'authLoad');
+      try {
+        const row = await fetchCloudStateRow(cloud.signedInUser.id);
+        if (row && row.state) {
+          setLocalDashboardState(row.state);
+          markLastSynced(new Date().toISOString(), row.updated_at || new Date().toISOString());
+        } else {
+          const defaultState = emptyDashboardState();
+          setLocalDashboardState(defaultState);
+          await pushCloudState({ silentSuccess: true });
+        }
+        setStatus('Synced', 'success');
+        if (cloud.signedInUser.email) {
+          showToast(`Signed in as ${cloud.signedInUser.email}`, 'success');
+        }
+      } finally {
+        setLoading(false);
+      }
+    }
+  }
+
+  async function initializeAuth() {
+    const { data: { session } } = await sb.auth.getSession();
+    await handleAuthStateChange('INITIAL_SESSION', session || null);
   }
 
   function bindCloudEvents() {
     cloud.signInBtn.addEventListener('click', signInWithPassword);
     cloud.signOutBtn.addEventListener('click', signOutCloud);
-    cloud.pushBtn.addEventListener('click', pushCloudState);
-    cloud.pullBtn.addEventListener('click', pullCloudState);
+    cloud.exportBtn.addEventListener('click', exportCloudBackup);
+    cloud.importInput.addEventListener('change', (event) => {
+      const [file] = event.target.files || [];
+      importCloudBackup(file);
+    });
 
     const submitSignIn = (event) => {
       if (event.key === 'Enter') {
