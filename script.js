@@ -16,8 +16,16 @@
   const CLOUD_LAST_SYNCED_AT_KEY = 'lastSyncedAt';
   const CLOUD_LAST_UPDATED_AT_KEY = 'lastCloudUpdatedAt';
   const LOCAL_STATE_VERSION_KEY = 'dashboardStateVersion';
-  const LATEST_STATE_VERSION = 1;
+  const LATEST_STATE_VERSION = 2;
   const AUTOSYNC_DEBOUNCE_MS = 2000;
+
+  const collapsedCardsDefault = {
+    generalActions: false,
+    bigTicket: false,
+    scheduling: false,
+    meetingNotes: false,
+    generalNotes: false,
+  };
 
   const { createClient } = supabase;
   const sb = createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
@@ -41,6 +49,18 @@
   const meetingBigEditHourInput = document.getElementById('meeting-big-edit-hour-input');
   const meetingBigEditMinuteInput = document.getElementById('meeting-big-edit-minute-input');
   const meetingBigEditNotesEditor = document.getElementById('meeting-big-edit-notes-editor');
+  const bigTicketModal = document.getElementById('big-ticket-modal');
+  const bigTicketModalBackdrop = document.getElementById('big-ticket-modal-backdrop');
+  const bigTicketModalClose = document.getElementById('big-ticket-modal-close');
+  const bigTicketModalSave = document.getElementById('big-ticket-modal-save');
+  const bigTicketModalEditor = document.getElementById('big-ticket-modal-editor');
+  const generalNoteBigEditModal = document.getElementById('general-note-big-edit-modal');
+  const generalNoteBigEditBackdrop = document.getElementById('general-note-big-edit-backdrop');
+  const generalNoteBigEditClose = document.getElementById('general-note-big-edit-close');
+  const generalNoteBigEditForm = document.getElementById('general-note-big-edit-form');
+  const generalNoteBigEditTitleInput = document.getElementById('general-note-big-edit-title-input');
+  const generalNoteBigEditDateInput = document.getElementById('general-note-big-edit-date-input');
+  const generalNoteBigEditEditor = document.getElementById('general-note-big-edit-editor');
   const mainContainer = document.getElementById('main-content');
   const columnsSection = document.querySelector('.columns');
   const signedOutMessage = document.getElementById('signed-out-message');
@@ -57,6 +77,29 @@
     minuteInput: document.getElementById('meeting-minute-input'),
     notesEditor: document.getElementById('meeting-notes-editor'),
     listEl: document.getElementById('meeting-list'),
+  };
+
+  const bigTicket = {
+    items: [],
+    form: document.getElementById('big-ticket-add-form'),
+    input: document.getElementById('big-ticket-input'),
+    listEl: document.getElementById('big-ticket-list'),
+    activeId: null,
+  };
+
+  const generalNotes = {
+    items: [],
+    expandedId: null,
+    editingId: null,
+    form: document.getElementById('general-notes-add-form'),
+    dateInput: document.getElementById('general-note-date-input'),
+    titleInput: document.getElementById('general-note-title-input'),
+    editor: document.getElementById('general-note-editor'),
+    listEl: document.getElementById('general-notes-list'),
+  };
+
+  const uiState = {
+    collapsedCards: { ...collapsedCardsDefault },
   };
 
   const cloud = {
@@ -188,6 +231,37 @@
     item.notesText = htmlToPlainText(item.notesHtml);
   }
 
+  function normalizeBigTicketItem(item) {
+    const html = sanitizeRichHtml(typeof item?.html === 'string' ? item.html : textToRichHtml(item?.text || ''));
+    const text = htmlToPlainText(html);
+    if (!text) return null;
+    return {
+      id: typeof item?.id === 'string' && item.id ? item.id : `ticket-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+      html,
+      text,
+      completed: Boolean(item?.completed),
+      createdAt: Number(item?.createdAt) || Date.now(),
+      updatedAt: Number(item?.updatedAt) || Date.now(),
+    };
+  }
+
+  function normalizeGeneralNote(item) {
+    const title = typeof item?.title === 'string' ? item.title.trim() : '';
+    const date = typeof item?.date === 'string' ? item.date : '';
+    const html = sanitizeRichHtml(typeof item?.html === 'string' ? item.html : textToRichHtml(item?.text || ''));
+    const text = htmlToPlainText(html);
+    if (!title || !date || !text) return null;
+    return {
+      id: typeof item?.id === 'string' && item.id ? item.id : `gn-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+      date,
+      title,
+      html,
+      text,
+      createdAt: Number(item?.createdAt) || Date.now(),
+      updatedAt: Number(item?.updatedAt) || Date.now(),
+    };
+  }
+
   function formatLocalDate(timestamp) {
     if (!timestamp) return '--/--';
     const date = new Date(timestamp);
@@ -317,6 +391,21 @@
     if (!suppressAutosync) requestAutosync();
   }
 
+  function saveBigTicketItems() {
+    localStorage.setItem('bigTicketItems', JSON.stringify(bigTicket.items));
+    if (!suppressAutosync) requestAutosync();
+  }
+
+  function saveGeneralNotes() {
+    localStorage.setItem('generalNotes', JSON.stringify(generalNotes.items));
+    if (!suppressAutosync) requestAutosync();
+  }
+
+  function saveUiState() {
+    localStorage.setItem('dashboardUiState', JSON.stringify(uiState));
+    if (!suppressAutosync) requestAutosync();
+  }
+
   function saveMeetingUIState() {
     localStorage.setItem(MEETING_UI_STORAGE_KEY, JSON.stringify(meeting.uiState));
     if (!suppressAutosync) requestAutosync();
@@ -358,6 +447,24 @@
     }
   }
 
+  function loadBigTicketItems() {
+    const parsed = parseStoredJson(localStorage.getItem('bigTicketItems'), []);
+    bigTicket.items = Array.isArray(parsed) ? parsed.map(normalizeBigTicketItem).filter(Boolean) : [];
+  }
+
+  function loadGeneralNotes() {
+    const parsed = parseStoredJson(localStorage.getItem('generalNotes'), []);
+    generalNotes.items = Array.isArray(parsed) ? parsed.map(normalizeGeneralNote).filter(Boolean) : [];
+  }
+
+  function loadUiState() {
+    const parsed = parseStoredJson(localStorage.getItem('dashboardUiState'), {});
+    uiState.collapsedCards = {
+      ...collapsedCardsDefault,
+      ...(parsed?.collapsedCards && typeof parsed.collapsedCards === 'object' ? parsed.collapsedCards : {}),
+    };
+  }
+
   function migrateLegacyGeneralData() {
     if (localStorage.getItem(GENERAL_STORAGE_KEY)) return;
     const legacyRaw = localStorage.getItem(LEGACY_STORAGE_KEY);
@@ -395,6 +502,9 @@
       generalActions: Array.isArray(incoming.generalActions) ? incoming.generalActions.map(normalizeAction).filter(Boolean) : [],
       schedulingActions: Array.isArray(incoming.schedulingActions) ? incoming.schedulingActions.map(normalizeAction).filter(Boolean) : [],
       meetingNotes: Array.isArray(incoming.meetingNotes) ? incoming.meetingNotes.map(normalizeMeeting).filter(Boolean) : [],
+      bigTicketItems: Array.isArray(incoming.bigTicketItems) ? incoming.bigTicketItems.map(normalizeBigTicketItem).filter(Boolean) : [],
+      generalNotes: Array.isArray(incoming.generalNotes) ? incoming.generalNotes.map(normalizeGeneralNote).filter(Boolean) : [],
+      ui: incoming.ui && typeof incoming.ui === 'object' ? incoming.ui : {},
       meetingNotesUIState: incoming.meetingNotesUIState && typeof incoming.meetingNotesUIState === 'object'
         ? {
           collapsedMonths: incoming.meetingNotesUIState.collapsedMonths && typeof incoming.meetingNotesUIState.collapsedMonths === 'object' ? incoming.meetingNotesUIState.collapsedMonths : {},
@@ -406,14 +516,28 @@
         : DEFAULT_NEXT_NUMBER,
     };
 
-    if (baseState.stateVersion < 1) {
-      baseState.stateVersion = 1;
+    if (baseState.stateVersion < 2) {
+      baseState.bigTicketItems = baseState.bigTicketItems || [];
+      baseState.generalNotes = baseState.generalNotes || [];
+      baseState.ui = {
+        collapsedCards: {
+          ...collapsedCardsDefault,
+          ...(baseState.ui.collapsedCards && typeof baseState.ui.collapsedCards === 'object' ? baseState.ui.collapsedCards : {}),
+        },
+      };
+      baseState.stateVersion = 2;
     }
 
     if (baseState.stateVersion < LATEST_STATE_VERSION) {
-      // Future migrations can be chained here.
       baseState.stateVersion = LATEST_STATE_VERSION;
     }
+
+    baseState.ui = {
+      collapsedCards: {
+        ...collapsedCardsDefault,
+        ...(baseState.ui.collapsedCards && typeof baseState.ui.collapsedCards === 'object' ? baseState.ui.collapsedCards : {}),
+      },
+    };
 
     const highest = Math.max(DEFAULT_NEXT_NUMBER - 1, ...baseState.generalActions.map((i) => i.number), ...baseState.schedulingActions.map((i) => i.number));
     if (baseState.nextActionNumber <= highest) {
@@ -438,6 +562,9 @@
       generalActions: parseStoredJson(localStorage.getItem(GENERAL_STORAGE_KEY), []),
       schedulingActions: parseStoredJson(localStorage.getItem(SCHEDULING_STORAGE_KEY), []),
       meetingNotes: parseStoredJson(localStorage.getItem(MEETING_STORAGE_KEY), []),
+      bigTicketItems: parseStoredJson(localStorage.getItem('bigTicketItems'), []),
+      generalNotes: parseStoredJson(localStorage.getItem('generalNotes'), []),
+      ui: parseStoredJson(localStorage.getItem('dashboardUiState'), { collapsedCards: { ...collapsedCardsDefault } }),
       meetingNotesUIState: parseStoredJson(localStorage.getItem(MEETING_UI_STORAGE_KEY), { collapsedMonths: {}, collapsedWeeks: {} }),
       nextActionNumber: Number(localStorage.getItem(NEXT_NUMBER_STORAGE_KEY)) || DEFAULT_NEXT_NUMBER,
     });
@@ -449,6 +576,9 @@
       localStorage.setItem(GENERAL_STORAGE_KEY, JSON.stringify(state.generalActions));
       localStorage.setItem(SCHEDULING_STORAGE_KEY, JSON.stringify(state.schedulingActions));
       localStorage.setItem(MEETING_STORAGE_KEY, JSON.stringify(state.meetingNotes));
+      localStorage.setItem('bigTicketItems', JSON.stringify(state.bigTicketItems));
+      localStorage.setItem('generalNotes', JSON.stringify(state.generalNotes));
+      localStorage.setItem('dashboardUiState', JSON.stringify(state.ui));
       localStorage.setItem(MEETING_UI_STORAGE_KEY, JSON.stringify(state.meetingNotesUIState));
       localStorage.setItem(NEXT_NUMBER_STORAGE_KEY, String(state.nextActionNumber));
       localStorage.setItem(LOCAL_STATE_VERSION_KEY, String(state.stateVersion || LATEST_STATE_VERSION));
@@ -561,6 +691,8 @@
       list.listEl.innerHTML = '';
     });
     meeting.listEl.innerHTML = '';
+    bigTicket.listEl.innerHTML = '';
+    generalNotes.listEl.innerHTML = '';
   }
 
   function applyAuthUiState(options = {}) {
@@ -587,6 +719,8 @@
       renderSignedOutState();
       closeModal(true);
       closeMeetingBigEdit();
+      closeBigTicketModal(true);
+      closeGeneralNoteBigEdit();
       return;
     }
 
@@ -595,6 +729,8 @@
         list.listEl.innerHTML = '';
       });
       meeting.listEl.innerHTML = '';
+    bigTicket.listEl.innerHTML = '';
+    generalNotes.listEl.innerHTML = '';
       return;
     }
 
@@ -607,6 +743,9 @@
       generalActions: [],
       schedulingActions: [],
       meetingNotes: [],
+      bigTicketItems: [],
+      generalNotes: [],
+      ui: { collapsedCards: { ...collapsedCardsDefault } },
       meetingNotesUIState: { collapsedMonths: {}, collapsedWeeks: {} },
       nextActionNumber: DEFAULT_NEXT_NUMBER,
     });
@@ -622,6 +761,9 @@
       loadList(lists.scheduling);
       loadMeetings();
       loadMeetingUIState();
+      loadBigTicketItems();
+      loadGeneralNotes();
+      loadUiState();
 
       const highest = Math.max(DEFAULT_NEXT_NUMBER - 1, ...lists.general.actions.map((i) => i.number), ...lists.scheduling.actions.map((i) => i.number));
       if (nextActionNumber <= highest) {
@@ -633,6 +775,9 @@
       saveList(lists.general);
       saveList(lists.scheduling);
       saveMeetings();
+      saveBigTicketItems();
+      saveGeneralNotes();
+      saveUiState();
     });
   }
 
@@ -903,6 +1048,9 @@
         item.notesText = notesText;
         item.updatedAt = new Date().toISOString();
         saveMeetings();
+      saveBigTicketItems();
+      saveGeneralNotes();
+      saveUiState();
         meeting.editingId = null;
         renderMeetings();
       });
@@ -939,6 +1087,9 @@
       if (meeting.expandedId === item.id) meeting.expandedId = null;
       if (meeting.editingId === item.id) meeting.editingId = null;
       saveMeetings();
+      saveBigTicketItems();
+      saveGeneralNotes();
+      saveUiState();
       renderMeetings();
     });
 
@@ -955,6 +1106,8 @@
 
   function renderMeetings() {
     meeting.listEl.innerHTML = '';
+    bigTicket.listEl.innerHTML = '';
+    generalNotes.listEl.innerHTML = '';
     if (!meeting.items.length) {
       const empty = document.createElement('p');
       empty.className = 'meeting-empty';
@@ -1047,6 +1200,153 @@
     });
   }
 
+
+  function renderCardCollapseState() {
+    document.querySelectorAll('[data-card-toggle]').forEach((toggle) => {
+      const cardId = toggle.dataset.cardToggle;
+      const collapsed = Boolean(uiState.collapsedCards[cardId]);
+      const body = document.querySelector(`[data-card-body="${cardId}"]`);
+      toggle.textContent = collapsed ? '▸' : '▾';
+      toggle.setAttribute('aria-expanded', String(!collapsed));
+      if (body) body.hidden = collapsed;
+    });
+  }
+
+  function renderBigTicketItems() {
+    bigTicket.listEl.innerHTML = '';
+    if (!bigTicket.items.length) {
+      const empty = document.createElement('li');
+      empty.className = 'coming-soon';
+      empty.textContent = 'No big ticket items yet.';
+      bigTicket.listEl.appendChild(empty);
+      return;
+    }
+
+    const ordered = [...bigTicket.items].sort((a, b) => Number(a.completed) - Number(b.completed) || b.createdAt - a.createdAt);
+    ordered.forEach((item) => {
+      const row = document.createElement('li');
+      row.className = 'big-ticket-row';
+
+      const cb = document.createElement('input');
+      cb.type = 'checkbox';
+      cb.checked = item.completed;
+      cb.addEventListener('change', () => {
+        item.completed = cb.checked;
+        item.updatedAt = Date.now();
+        saveBigTicketItems();
+        renderBigTicketItems();
+      });
+
+      const summary = document.createElement('button');
+      summary.type = 'button';
+      summary.className = 'big-ticket-summary';
+      summary.textContent = item.text;
+      summary.addEventListener('click', () => openBigTicketModal(item.id));
+
+      const del = document.createElement('button');
+      del.type = 'button';
+      del.className = 'icon-btn delete-btn';
+      del.textContent = 'X';
+      del.addEventListener('click', () => {
+        bigTicket.items = bigTicket.items.filter((entry) => entry.id !== item.id);
+        if (bigTicket.activeId === item.id) bigTicket.activeId = null;
+        saveBigTicketItems();
+        renderBigTicketItems();
+      });
+
+      row.append(cb, summary, del);
+      bigTicket.listEl.appendChild(row);
+    });
+  }
+
+  function getGeneralNoteGroups() {
+    const sorted = [...generalNotes.items].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime() || b.createdAt - a.createdAt);
+    const map = new Map();
+    sorted.forEach((note) => {
+      const d = new Date(`${note.date}T00:00:00`);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      if (!map.has(key)) {
+        map.set(key, { label: d.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' }), items: [] });
+      }
+      map.get(key).items.push(note);
+    });
+    return Array.from(map.values());
+  }
+
+  function renderGeneralNotes() {
+    generalNotes.listEl.innerHTML = '';
+    if (!generalNotes.items.length) {
+      const empty = document.createElement('p');
+      empty.className = 'meeting-empty';
+      empty.textContent = 'No general notes yet.';
+      generalNotes.listEl.appendChild(empty);
+      return;
+    }
+
+    getGeneralNoteGroups().forEach((group) => {
+      const section = document.createElement('section');
+      const header = document.createElement('h4');
+      header.className = 'general-note-month-header';
+      header.textContent = group.label;
+      section.appendChild(header);
+
+      const list = document.createElement('ul');
+      list.className = 'meeting-items';
+      group.items.forEach((note) => {
+        const li = document.createElement('li');
+        li.className = 'general-note-item';
+        const summary = document.createElement('button');
+        summary.type = 'button';
+        summary.className = 'general-note-summary';
+        const day = note.date.split('-').reverse().slice(0, 2).join('/');
+        summary.textContent = `${day} — ${note.title}`;
+        summary.addEventListener('click', () => {
+          generalNotes.expandedId = generalNotes.expandedId === note.id ? null : note.id;
+          generalNotes.editingId = null;
+          renderGeneralNotes();
+        });
+        li.appendChild(summary);
+
+        if (generalNotes.expandedId === note.id) {
+          const detail = document.createElement('div');
+          detail.className = 'general-note-detail';
+
+          if (generalNotes.editingId === note.id) {
+            const form = document.createElement('form');
+            form.className = 'meeting-edit-form';
+            const d = document.createElement('input'); d.type = 'date'; d.required = true; d.value = note.date;
+            const t = document.createElement('input'); t.type = 'text'; t.required = true; t.value = note.title;
+            const toolbar = document.createElement('div'); toolbar.className = 'rtf-toolbar';
+            const editorId = `gn-edit-${note.id}`; toolbar.dataset.editorTarget = editorId;
+            toolbar.innerHTML = '<button type="button" data-command="bold">B</button><button type="button" data-command="italic">I</button><button type="button" data-command="underline">U</button><button type="button" data-command="insertUnorderedList">•</button><button type="button" data-command="insertOrderedList">1.</button>';
+            const editor = document.createElement('div'); editor.id = editorId; editor.className = 'modal-editor'; editor.contentEditable = 'true'; editor.innerHTML = note.html;
+            const controls = document.createElement('div'); controls.className = 'meeting-detail-controls';
+            const save = document.createElement('button'); save.type='submit'; save.className='meeting-link-btn'; save.textContent='Save';
+            const cancel = document.createElement('button'); cancel.type='button'; cancel.className='meeting-link-btn'; cancel.textContent='Cancel';
+            cancel.addEventListener('click',()=>{generalNotes.editingId=null; renderGeneralNotes();});
+            controls.append(save,cancel);
+            form.append(d,t,toolbar,editor,controls);
+            bindRtfToolbar(toolbar); bindEditorShortcuts(editor);
+            form.addEventListener('submit',(e)=>{e.preventDefault(); const html=sanitizeRichHtml(editor.innerHTML); const text=htmlToPlainText(html); const title=t.value.trim(); if(!title||!d.value||!text)return; note.date=d.value; note.title=title; note.html=html; note.text=text; note.updatedAt=Date.now(); saveGeneralNotes(); generalNotes.editingId=null; renderGeneralNotes();});
+            detail.appendChild(form);
+          } else {
+            const notes = document.createElement('div'); notes.className = 'meeting-notes-rendered'; notes.innerHTML = note.html;
+            const controls = document.createElement('div'); controls.className = 'meeting-detail-controls';
+            const edit = document.createElement('button'); edit.type='button'; edit.className='meeting-link-btn'; edit.textContent='Edit'; edit.addEventListener('click',()=>{generalNotes.editingId=note.id; renderGeneralNotes();});
+            const big = document.createElement('button'); big.type='button'; big.className='meeting-link-btn'; big.textContent='Big edit'; big.addEventListener('click',()=>openGeneralNoteBigEdit(note.id));
+            const del = document.createElement('button'); del.type='button'; del.className='meeting-link-btn delete'; del.textContent='Delete'; del.addEventListener('click',()=>{generalNotes.items=generalNotes.items.filter((n)=>n.id!==note.id); if(generalNotes.expandedId===note.id)generalNotes.expandedId=null; saveGeneralNotes(); renderGeneralNotes();});
+            controls.append(edit,big,del);
+            detail.append(notes,controls);
+          }
+          li.appendChild(detail);
+        }
+        list.appendChild(li);
+      });
+      section.appendChild(list);
+      generalNotes.listEl.appendChild(section);
+    });
+  }
+
   function renderAll() {
     if (!isAuthenticated) {
       renderSignedOutState();
@@ -1054,7 +1354,10 @@
     }
     renderList(lists.general);
     renderList(lists.scheduling);
+    renderBigTicketItems();
     renderMeetings();
+    renderGeneralNotes();
+    renderCardCollapseState();
   }
 
   function addAction(list, rawHtml) {
@@ -1098,6 +1401,95 @@
     });
     saveMeetings();
     renderMeetings();
+    return true;
+  }
+
+
+  function addBigTicketItem(rawHtml) {
+    const html = sanitizeRichHtml(rawHtml);
+    const text = htmlToPlainText(html);
+    if (!text) return false;
+    const now = Date.now();
+    bigTicket.items.unshift({ id: `ticket-${now}-${Math.random().toString(16).slice(2)}`, html, text, completed: false, createdAt: now, updatedAt: now });
+    saveBigTicketItems();
+    renderBigTicketItems();
+    return true;
+  }
+
+  function openBigTicketModal(id) {
+    const item = bigTicket.items.find((entry) => entry.id === id);
+    if (!item) return;
+    bigTicket.activeId = id;
+    bigTicketModalEditor.innerHTML = item.html;
+    bigTicketModal.hidden = false;
+    bigTicketModalEditor.focus();
+  }
+
+  function saveBigTicketModal() {
+    const item = bigTicket.items.find((entry) => entry.id === bigTicket.activeId);
+    if (!item) return false;
+    const html = sanitizeRichHtml(bigTicketModalEditor.innerHTML);
+    const text = htmlToPlainText(html);
+    if (!text) return false;
+    item.html = html;
+    item.text = text;
+    item.updatedAt = Date.now();
+    saveBigTicketItems();
+    renderBigTicketItems();
+    return true;
+  }
+
+  function closeBigTicketModal(skipSave = false) {
+    if (!skipSave && bigTicket.activeId) saveBigTicketModal();
+    bigTicketModal.hidden = true;
+    bigTicket.activeId = null;
+  }
+
+  function addGeneralNote(dateRaw, titleRaw, htmlRaw) {
+    const title = titleRaw.trim();
+    const html = sanitizeRichHtml(htmlRaw);
+    const text = htmlToPlainText(html);
+    if (!dateRaw || !title || !text) return false;
+    const now = Date.now();
+    generalNotes.items.push({ id: `gn-${now}-${Math.random().toString(16).slice(2)}`, date: dateRaw, title, html, text, createdAt: now, updatedAt: now });
+    saveGeneralNotes();
+    renderGeneralNotes();
+    return true;
+  }
+
+  function getGeneralNoteById(id) {
+    return generalNotes.items.find((item) => item.id === id) || null;
+  }
+
+  function openGeneralNoteBigEdit(id) {
+    const item = getGeneralNoteById(id);
+    if (!item) return;
+    generalNotes.editingId = id;
+    generalNoteBigEditTitleInput.value = item.title;
+    generalNoteBigEditDateInput.value = item.date;
+    generalNoteBigEditEditor.innerHTML = item.html;
+    generalNoteBigEditModal.hidden = false;
+  }
+
+  function closeGeneralNoteBigEdit() {
+    generalNoteBigEditModal.hidden = true;
+  }
+
+  function saveGeneralNoteBigEdit() {
+    const item = getGeneralNoteById(generalNotes.editingId);
+    if (!item) return false;
+    const title = generalNoteBigEditTitleInput.value.trim();
+    const date = generalNoteBigEditDateInput.value;
+    const html = sanitizeRichHtml(generalNoteBigEditEditor.innerHTML);
+    const text = htmlToPlainText(html);
+    if (!title || !date || !text) return false;
+    item.title = title;
+    item.date = date;
+    item.html = html;
+    item.text = text;
+    item.updatedAt = Date.now();
+    saveGeneralNotes();
+    renderGeneralNotes();
     return true;
   }
 
@@ -1570,6 +1962,46 @@
     });
   }
 
+  function bindCardToggleEvents() {
+    document.querySelectorAll('[data-card-toggle]').forEach((toggle) => {
+      toggle.addEventListener('click', () => {
+        const cardId = toggle.dataset.cardToggle;
+        uiState.collapsedCards[cardId] = !uiState.collapsedCards[cardId];
+        saveUiState();
+        renderCardCollapseState();
+      });
+    });
+  }
+
+  function bindBigTicketEvents() {
+    bigTicket.form.addEventListener('submit', (event) => {
+      event.preventDefault();
+      const added = addBigTicketItem(bigTicket.input.innerHTML);
+      if (!added) return;
+      bigTicket.input.innerHTML = '';
+      bigTicket.input.focus();
+    });
+
+    bigTicket.input.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter' && !event.shiftKey) {
+        event.preventDefault();
+        bigTicket.form.requestSubmit();
+      }
+    });
+  }
+
+  function bindGeneralNotesEvents() {
+    generalNotes.form.addEventListener('submit', (event) => {
+      event.preventDefault();
+      const added = addGeneralNote(generalNotes.dateInput.value, generalNotes.titleInput.value, generalNotes.editor.innerHTML);
+      if (!added) return;
+      generalNotes.form.reset();
+      generalNotes.editor.innerHTML = '';
+      generalNotes.dateInput.focus();
+    });
+  }
+
+
   populateHourOptions(meeting.hourInput);
   populateHourOptions(meetingBigEditHourInput);
   meeting.minuteInput.value = '00';
@@ -1580,6 +2012,10 @@
   bindEditorShortcuts(lists.scheduling.input);
   bindEditorShortcuts(meeting.notesEditor);
   bindEditorShortcuts(meetingBigEditNotesEditor);
+  bindEditorShortcuts(bigTicket.input);
+  bindEditorShortcuts(bigTicketModalEditor);
+  bindEditorShortcuts(generalNotes.editor);
+  bindEditorShortcuts(generalNoteBigEditEditor);
 
   modalSaveBtn.addEventListener('click', () => {
     if (persistModalChanges()) closeModal(true);
@@ -1604,10 +2040,31 @@
   meetingBigEditClose.addEventListener('click', closeMeetingBigEdit);
   meetingBigEditBackdrop.addEventListener('click', closeMeetingBigEdit);
 
+  bigTicketModalSave.addEventListener('click', () => {
+    if (saveBigTicketModal()) closeBigTicketModal(true);
+  });
+  bigTicketModalClose.addEventListener('click', () => closeBigTicketModal());
+  bigTicketModalBackdrop.addEventListener('click', () => closeBigTicketModal());
+
+  generalNoteBigEditForm.addEventListener('submit', (event) => {
+    event.preventDefault();
+    if (saveGeneralNoteBigEdit()) closeGeneralNoteBigEdit();
+  });
+  generalNoteBigEditClose.addEventListener('click', closeGeneralNoteBigEdit);
+  generalNoteBigEditBackdrop.addEventListener('click', closeGeneralNoteBigEdit);
+
   modalCloseBtn.addEventListener('click', () => closeModal());
   modalBackdrop.addEventListener('click', () => closeModal());
   window.addEventListener('keydown', (event) => {
     if (event.key !== 'Escape') return;
+    if (!generalNoteBigEditModal.hidden) {
+      closeGeneralNoteBigEdit();
+      return;
+    }
+    if (!bigTicketModal.hidden) {
+      closeBigTicketModal();
+      return;
+    }
     if (!meetingBigEditModal.hidden) {
       closeMeetingBigEdit();
       return;
@@ -1622,6 +2079,9 @@
   bindListEvents(lists.general);
   bindListEvents(lists.scheduling);
   bindMeetingEvents();
+  bindBigTicketEvents();
+  bindGeneralNotesEvents();
+  bindCardToggleEvents();
   bindCloudEvents();
   loadData();
   renderAll();
