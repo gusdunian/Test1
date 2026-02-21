@@ -16,50 +16,47 @@
   const CLOUD_LAST_SYNCED_AT_KEY = 'lastSyncedAt';
   const CLOUD_LAST_UPDATED_AT_KEY = 'lastCloudUpdatedAt';
   const LOCAL_STATE_VERSION_KEY = 'dashboardStateVersion';
-  const LATEST_STATE_VERSION = 4;
+  const LATEST_STATE_VERSION = 5;
   const AUTOSYNC_DEBOUNCE_MS = 2000;
+
+  const DEFAULT_DASHBOARD_TITLE = 'Angus’ Working Dashboard';
 
   const defaultTheme = {
     bannerBg: '#1e3a8a',
+    bannerFg: '#ffffff',
     pageBg: '#f3f6fb',
     cardHeaderBg: '#0f172a',
     cardHeaderFg: '#ffffff',
-    cardBg: '#fbfcfe',
-    cardFg: '#111827',
   };
 
   const THEMES = {
     Dark: {
       bannerBg: '#0f172a',
+      bannerFg: '#f8fafc',
       pageBg: '#111827',
       cardHeaderBg: '#1f2937',
       cardHeaderFg: '#f8fafc',
-      cardBg: '#1e293b',
-      cardFg: '#e5e7eb',
     },
     Bright: {
       bannerBg: '#2563eb',
+      bannerFg: '#ffffff',
       pageBg: '#f8fafc',
       cardHeaderBg: '#1d4ed8',
       cardHeaderFg: '#ffffff',
-      cardBg: '#ffffff',
-      cardFg: '#0f172a',
     },
     Pastel: {
       bannerBg: '#9f7aea',
+      bannerFg: '#f8fafc',
       pageBg: '#fdf2f8',
       cardHeaderBg: '#c4b5fd',
       cardHeaderFg: '#312e81',
-      cardBg: '#fef9c3',
-      cardFg: '#3f3f46',
     },
     Colourful: {
       bannerBg: '#ea580c',
+      bannerFg: '#fff7ed',
       pageBg: '#eff6ff',
       cardHeaderBg: '#059669',
       cardHeaderFg: '#ecfeff',
-      cardBg: '#fffbeb',
-      cardFg: '#1f2937',
     },
   };
 
@@ -108,6 +105,8 @@
   const mainContainer = document.getElementById('main-content');
   const columnsSection = document.querySelector('.columns');
   const signedOutMessage = document.getElementById('signed-out-message');
+  const dashboardTitleEl = document.getElementById('dashboard-title');
+  const dashboardDateEl = document.getElementById('dashboard-date');
 
   const settingsBtn = document.getElementById('cloud-settings-btn');
   const settingsModal = document.getElementById('settings-modal');
@@ -116,12 +115,12 @@
   const settingsForm = document.getElementById('settings-form');
   const settingsCancelBtn = document.getElementById('settings-cancel-btn');
   const themePresetSelect = document.getElementById('theme-preset-select');
+  const dashboardTitleInput = document.getElementById('dashboard-title-input');
   const themeBannerBgInput = document.getElementById('theme-banner-bg');
+  const themeBannerFgInput = document.getElementById('theme-banner-fg');
   const themePageBgInput = document.getElementById('theme-page-bg');
   const themeCardHeaderBgInput = document.getElementById('theme-card-header-bg');
   const themeCardHeaderFgInput = document.getElementById('theme-card-header-fg');
-  const themeCardBgInput = document.getElementById('theme-card-bg');
-  const themeCardFgInput = document.getElementById('theme-card-fg');
   const meetingBigEditCancel = document.getElementById('meeting-big-edit-cancel');
   const generalNoteBigEditCancel = document.getElementById('general-note-big-edit-cancel');
 
@@ -163,6 +162,7 @@
     collapsedCards: { ...collapsedCardsDefault },
     collapsedGeneralNotesMonths: {},
     theme: { presetName: 'Bright', vars: { ...defaultTheme } },
+    dashboardTitle: DEFAULT_DASHBOARD_TITLE,
   };
 
   const appState = {
@@ -172,7 +172,12 @@
     meetingNotes: [],
     bigTicketItems: [],
     generalNotes: [],
-    ui: { collapsedCards: { ...collapsedCardsDefault }, collapsedGeneralNotesMonths: {}, theme: { presetName: 'Bright', vars: { ...defaultTheme } } },
+    ui: {
+      collapsedCards: { ...collapsedCardsDefault },
+      collapsedGeneralNotesMonths: {},
+      theme: { presetName: 'Bright', vars: { ...defaultTheme } },
+      dashboardTitle: DEFAULT_DASHBOARD_TITLE,
+    },
     meetingNotesUIState: { collapsedMonths: {}, collapsedWeeks: {} },
     nextActionNumber: DEFAULT_NEXT_NUMBER,
   };
@@ -188,6 +193,7 @@
     importInput: document.getElementById('cloud-import-input'),
     signedInDisplay: document.getElementById('cloud-signed-in-display'),
     signedInEmailEl: document.getElementById('cloud-signed-in-email'),
+    collapseAllBtn: document.getElementById('collapse-all-btn'),
     statusEl: document.getElementById('cloud-status'),
     toastContainer: document.getElementById('toast-container'),
     signedInUser: null,
@@ -606,11 +612,10 @@
     const source = themeLike && typeof themeLike === 'object' ? themeLike : {};
     return {
       bannerBg: typeof source.bannerBg === 'string' ? source.bannerBg : defaultTheme.bannerBg,
+      bannerFg: typeof source.bannerFg === 'string' ? source.bannerFg : defaultTheme.bannerFg,
       pageBg: typeof source.pageBg === 'string' ? source.pageBg : defaultTheme.pageBg,
       cardHeaderBg: typeof source.cardHeaderBg === 'string' ? source.cardHeaderBg : defaultTheme.cardHeaderBg,
       cardHeaderFg: typeof source.cardHeaderFg === 'string' ? source.cardHeaderFg : defaultTheme.cardHeaderFg,
-      cardBg: typeof source.cardBg === 'string' ? source.cardBg : defaultTheme.cardBg,
-      cardFg: typeof source.cardFg === 'string' ? source.cardFg : defaultTheme.cardFg,
     };
   }
 
@@ -618,11 +623,10 @@
     const theme = normalizeTheme(themeLike);
     const root = document.documentElement;
     root.style.setProperty('--banner-bg', theme.bannerBg);
+    root.style.setProperty('--banner-fg', theme.bannerFg);
     root.style.setProperty('--page-bg', theme.pageBg);
     root.style.setProperty('--card-header-bg', theme.cardHeaderBg);
     root.style.setProperty('--card-header-fg', theme.cardHeaderFg);
-    root.style.setProperty('--card-body-bg', theme.cardBg);
-    root.style.setProperty('--card-body-fg', theme.cardFg);
   }
 
   function loadUiState() {
@@ -635,6 +639,9 @@
       ? parsed.collapsedGeneralNotesMonths
       : {};
     uiState.theme = normalizeThemeState(parsed?.theme);
+    uiState.dashboardTitle = typeof parsed?.dashboardTitle === 'string' && parsed.dashboardTitle.trim()
+      ? parsed.dashboardTitle.trim()
+      : DEFAULT_DASHBOARD_TITLE;
     generalNotes.uiState.collapsedMonths = uiState.collapsedGeneralNotesMonths;
     applyTheme(uiState.theme.vars);
   }
@@ -720,6 +727,17 @@
       baseState.stateVersion = 4;
     }
 
+    if (baseState.stateVersion < 5) {
+      baseState.ui = {
+        ...baseState.ui,
+        theme: normalizeThemeState(baseState.ui.theme),
+        dashboardTitle: typeof baseState.ui.dashboardTitle === 'string' && baseState.ui.dashboardTitle.trim()
+          ? baseState.ui.dashboardTitle.trim()
+          : DEFAULT_DASHBOARD_TITLE,
+      };
+      baseState.stateVersion = 5;
+    }
+
     if (baseState.stateVersion < LATEST_STATE_VERSION) {
       baseState.stateVersion = LATEST_STATE_VERSION;
     }
@@ -731,6 +749,9 @@
       },
       collapsedGeneralNotesMonths: baseState.ui.collapsedGeneralNotesMonths && typeof baseState.ui.collapsedGeneralNotesMonths === 'object' ? baseState.ui.collapsedGeneralNotesMonths : {},
       theme: normalizeThemeState(baseState.ui.theme),
+      dashboardTitle: typeof baseState.ui.dashboardTitle === 'string' && baseState.ui.dashboardTitle.trim()
+        ? baseState.ui.dashboardTitle.trim()
+        : DEFAULT_DASHBOARD_TITLE,
     };
 
     const highest = Math.max(DEFAULT_NEXT_NUMBER - 1, ...baseState.generalActions.map((i) => i.number), ...baseState.schedulingActions.map((i) => i.number));
@@ -771,7 +792,12 @@
     appState.meetingNotes = meeting.items;
     appState.bigTicketItems = bigTicket.items;
     appState.generalNotes = generalNotes.items;
-    appState.ui = { collapsedCards: uiState.collapsedCards, collapsedGeneralNotesMonths: uiState.collapsedGeneralNotesMonths, theme: uiState.theme };
+    appState.ui = {
+      collapsedCards: uiState.collapsedCards,
+      collapsedGeneralNotesMonths: uiState.collapsedGeneralNotesMonths,
+      theme: uiState.theme,
+      dashboardTitle: uiState.dashboardTitle,
+    };
     appState.meetingNotesUIState = meeting.uiState;
     appState.nextActionNumber = nextActionNumber;
   }
@@ -879,6 +905,7 @@
     cloud.exportBtn.hidden = !signedIn;
     cloud.importLabel.hidden = !signedIn;
     cloud.settingsBtn.hidden = !signedIn;
+    cloud.collapseAllBtn.hidden = !signedIn;
     cloud.signedInDisplay.hidden = !signedIn;
     cloud.emailInput.hidden = signedIn;
     cloud.passwordInput.hidden = signedIn;
@@ -888,6 +915,7 @@
     cloud.signInBtn.disabled = cloud.busy || cloud.syncInFlight || signedIn;
     cloud.signOutBtn.disabled = cloud.busy || !signedIn;
     cloud.settingsBtn.disabled = cloud.busy || !signedIn || cloud.syncInFlight;
+    cloud.collapseAllBtn.disabled = cloud.busy || !signedIn || cloud.syncInFlight;
     cloud.emailInput.disabled = cloud.busy || signedIn || cloud.syncInFlight;
     cloud.passwordInput.disabled = cloud.busy || cloud.syncInFlight || signedIn;
 
@@ -960,7 +988,12 @@
       meetingNotes: [],
       bigTicketItems: [],
       generalNotes: [],
-      ui: { collapsedCards: { ...collapsedCardsDefault }, collapsedGeneralNotesMonths: {}, theme: { presetName: 'Bright', vars: { ...defaultTheme } } },
+      ui: {
+      collapsedCards: { ...collapsedCardsDefault },
+      collapsedGeneralNotesMonths: {},
+      theme: { presetName: 'Bright', vars: { ...defaultTheme } },
+      dashboardTitle: DEFAULT_DASHBOARD_TITLE,
+    },
       meetingNotesUIState: { collapsedMonths: {}, collapsedWeeks: {} },
       nextActionNumber: DEFAULT_NEXT_NUMBER,
     });
@@ -1427,6 +1460,45 @@
     });
   }
 
+
+  function getOrdinalSuffix(day) {
+    const remainder100 = day % 100;
+    if (remainder100 >= 11 && remainder100 <= 13) return 'th';
+    const remainder10 = day % 10;
+    if (remainder10 === 1) return 'st';
+    if (remainder10 === 2) return 'nd';
+    if (remainder10 === 3) return 'rd';
+    return 'th';
+  }
+
+  function renderDashboardHeading() {
+    const title = uiState.dashboardTitle || DEFAULT_DASHBOARD_TITLE;
+    dashboardTitleEl.textContent = title;
+    document.title = title;
+    const today = new Date();
+    const dayName = today.toLocaleDateString('en-GB', { weekday: 'long' });
+    const monthName = today.toLocaleDateString('en-GB', { month: 'long' });
+    const day = today.getDate();
+    const year = today.getFullYear();
+    dashboardDateEl.textContent = `${dayName} ${day}${getOrdinalSuffix(day)} ${monthName} ${year}`;
+  }
+
+  function renderCollapseAllButton() {
+    const allCollapsed = Object.values(uiState.collapsedCards).every(Boolean);
+    cloud.collapseAllBtn.textContent = allCollapsed ? 'Expand' : 'Hide';
+    cloud.collapseAllBtn.setAttribute('aria-label', allCollapsed ? 'Expand all cards' : 'Hide all cards');
+  }
+
+  function toggleAllCardsCollapse() {
+    const allCollapsed = Object.values(uiState.collapsedCards).every(Boolean);
+    Object.keys(collapsedCardsDefault).forEach((cardId) => {
+      uiState.collapsedCards[cardId] = !allCollapsed;
+    });
+    saveUiState();
+    renderCardCollapseState();
+    renderCollapseAllButton();
+  }
+
   function renderBigTicketItems() {
     bigTicket.listEl.innerHTML = '';
     if (!bigTicket.items.length) {
@@ -1578,6 +1650,7 @@
   }
 
   function renderAll() {
+    renderDashboardHeading();
     if (!isAuthenticated) {
       renderSignedOutState();
       return;
@@ -1595,6 +1668,7 @@
     renderMeetings();
     renderGeneralNotes();
     renderCardCollapseState();
+    renderCollapseAllButton();
   }
 
   function addAction(list, rawHtml) {
@@ -1749,23 +1823,22 @@
     const theme = themeState.vars;
     suppressThemePresetSync = true;
     themePresetSelect.value = themeState.presetName;
+    dashboardTitleInput.value = uiState.dashboardTitle;
     themeBannerBgInput.value = theme.bannerBg;
+    themeBannerFgInput.value = theme.bannerFg;
     themePageBgInput.value = theme.pageBg;
     themeCardHeaderBgInput.value = theme.cardHeaderBg;
     themeCardHeaderFgInput.value = theme.cardHeaderFg;
-    themeCardBgInput.value = theme.cardBg;
-    themeCardFgInput.value = theme.cardFg;
     suppressThemePresetSync = false;
   }
 
   function getThemeVarsFromSettingsForm() {
     return normalizeTheme({
       bannerBg: themeBannerBgInput.value,
+      bannerFg: themeBannerFgInput.value,
       pageBg: themePageBgInput.value,
       cardHeaderBg: themeCardHeaderBgInput.value,
       cardHeaderFg: themeCardHeaderFgInput.value,
-      cardBg: themeCardBgInput.value,
-      cardFg: themeCardFgInput.value,
     });
   }
 
@@ -1822,6 +1895,7 @@
 
   function saveSettingsModal() {
     uiState.theme = settingsThemeDraft ? normalizeThemeState(settingsThemeDraft) : getThemeFromSettingsForm();
+    uiState.dashboardTitle = dashboardTitleInput.value.trim() || DEFAULT_DASHBOARD_TITLE;
     applyTheme(uiState.theme.vars);
     saveUiState();
     renderAll();
@@ -2314,6 +2388,7 @@
         uiState.collapsedCards[cardId] = !uiState.collapsedCards[cardId];
         saveUiState();
         renderCardCollapseState();
+        renderCollapseAllButton();
       });
     });
   }
@@ -2403,6 +2478,7 @@
   modalCloseBtn.addEventListener('click', () => closeModal());
 
   settingsBtn.addEventListener('click', openSettingsModal);
+  cloud.collapseAllBtn.addEventListener('click', toggleAllCardsCollapse);
   settingsForm.addEventListener('submit', (event) => {
     event.preventDefault();
     previewSettingsTheme();
@@ -2410,7 +2486,7 @@
     closeSettingsModal({ revert: false });
   });
   themePresetSelect.addEventListener('change', applyThemePresetFromSettings);
-  [themeBannerBgInput, themePageBgInput, themeCardHeaderBgInput, themeCardHeaderFgInput, themeCardBgInput, themeCardFgInput]
+  [themeBannerBgInput, themeBannerFgInput, themePageBgInput, themeCardHeaderBgInput, themeCardHeaderFgInput]
     .forEach((input) => input.addEventListener('input', onThemeColorInputChange));
   settingsCancelBtn.addEventListener('click', () => closeSettingsModal());
   settingsModalClose.addEventListener('click', () => closeSettingsModal());
