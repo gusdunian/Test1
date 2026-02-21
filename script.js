@@ -16,7 +16,7 @@
   const CLOUD_LAST_SYNCED_AT_KEY = 'lastSyncedAt';
   const CLOUD_LAST_UPDATED_AT_KEY = 'lastCloudUpdatedAt';
   const LOCAL_STATE_VERSION_KEY = 'dashboardStateVersion';
-  const LATEST_STATE_VERSION = 6;
+  const LATEST_STATE_VERSION = 7;
   const AUTOSYNC_DEBOUNCE_MS = 2000;
 
   const DEFAULT_DASHBOARD_TITLE = 'Angus’ Working Dashboard';
@@ -482,7 +482,8 @@
       html,
       html_inline: richHtmlToInlineHtml(typeof item?.html_inline === 'string' ? item.html_inline : html),
       text,
-      completed: Boolean(item?.completed),
+      urgencyLevel: Math.max(0, Math.min(2, Number.isInteger(item?.urgencyLevel) ? item.urgencyLevel : 0)),
+      timeDependent: Boolean(item?.timeDependent),
       createdAt: Number(item?.createdAt) || Date.now(),
       updatedAt: Number(item?.updatedAt) || Date.now(),
     };
@@ -870,6 +871,15 @@
       baseState.stateVersion = 6;
     }
 
+    if (baseState.stateVersion < 7) {
+      baseState.bigTicketItems = baseState.bigTicketItems.map((item) => ({
+        ...item,
+        urgencyLevel: Math.max(0, Math.min(2, Number.isInteger(item?.urgencyLevel) ? item.urgencyLevel : 0)),
+        timeDependent: Boolean(item?.timeDependent),
+      }));
+      baseState.stateVersion = 7;
+    }
+
     if (baseState.stateVersion < LATEST_STATE_VERSION) {
       baseState.stateVersion = LATEST_STATE_VERSION;
     }
@@ -1235,6 +1245,7 @@
       if (action.deleted) li.classList.add('deleted');
       if (!action.completed && !action.deleted && action.urgencyLevel === 1) li.classList.add('urgent');
       if (!action.completed && !action.deleted && action.urgencyLevel === 2) li.classList.add('super-urgent');
+      if (!action.completed && !action.deleted && action.urgencyLevel === 0 && action.timeDependent) li.classList.add('time-dependent');
 
       const checkbox = document.createElement('input');
       checkbox.type = 'checkbox';
@@ -1677,20 +1688,16 @@
       return;
     }
 
-    const ordered = [...bigTicket.items].sort((a, b) => Number(a.completed) - Number(b.completed) || b.createdAt - a.createdAt);
-    ordered.forEach((item) => {
+    bigTicket.items.forEach((item, index) => {
       const row = document.createElement('li');
       row.className = 'big-ticket-row';
+      if (item.urgencyLevel === 1) row.classList.add('urgent');
+      if (item.urgencyLevel === 2) row.classList.add('super-urgent');
+      if (item.urgencyLevel === 0 && item.timeDependent) row.classList.add('time-dependent');
 
-      const cb = document.createElement('input');
-      cb.type = 'checkbox';
-      cb.checked = item.completed;
-      cb.addEventListener('change', () => {
-        item.completed = cb.checked;
-        item.updatedAt = Date.now();
-        saveBigTicketItems();
-        renderBigTicketItems();
-      });
+      const number = document.createElement('span');
+      number.className = 'action-number';
+      number.textContent = `${index + 1}.`;
 
       const summary = document.createElement('button');
       summary.type = 'button';
@@ -1698,21 +1705,85 @@
       summary.innerHTML = item.html_inline || escapeHtml(item.text);
       summary.addEventListener('click', () => openBigTicketModal(item.id));
 
+      const controls = document.createElement('div');
+      controls.className = 'action-controls';
+
+      const urgentBtn = document.createElement('button');
+      urgentBtn.type = 'button';
+      urgentBtn.className = 'icon-btn urgent-btn';
+      urgentBtn.textContent = item.urgencyLevel === 2 ? '!!' : '!';
+      urgentBtn.classList.toggle('active', item.urgencyLevel === 1);
+      urgentBtn.classList.toggle('super', item.urgencyLevel === 2);
+      urgentBtn.addEventListener('click', (event) => {
+        event.stopPropagation();
+        item.urgencyLevel = (item.urgencyLevel + 1) % 3;
+        item.updatedAt = Date.now();
+        saveBigTicketItems();
+        renderBigTicketItems();
+      });
+
+      const timeDependentBtn = document.createElement('button');
+      timeDependentBtn.type = 'button';
+      timeDependentBtn.className = 'icon-btn time-dependent-btn';
+      timeDependentBtn.textContent = 'T';
+      timeDependentBtn.classList.toggle('active', Boolean(item.timeDependent));
+      timeDependentBtn.setAttribute('aria-label', 'Toggle time-dependent');
+      timeDependentBtn.addEventListener('click', (event) => {
+        event.stopPropagation();
+        item.timeDependent = !item.timeDependent;
+        item.updatedAt = Date.now();
+        saveBigTicketItems();
+        renderBigTicketItems();
+      });
+
+      const upBtn = document.createElement('button');
+      upBtn.type = 'button';
+      upBtn.className = 'icon-btn';
+      upBtn.textContent = '▲';
+      upBtn.disabled = index === 0;
+      upBtn.setAttribute('aria-label', 'Move up');
+      upBtn.addEventListener('click', (event) => {
+        event.stopPropagation();
+        if (index === 0) return;
+        [bigTicket.items[index - 1], bigTicket.items[index]] = [bigTicket.items[index], bigTicket.items[index - 1]];
+        item.updatedAt = Date.now();
+        saveBigTicketItems();
+        renderBigTicketItems();
+      });
+
+      const downBtn = document.createElement('button');
+      downBtn.type = 'button';
+      downBtn.className = 'icon-btn';
+      downBtn.textContent = '▼';
+      downBtn.disabled = index === bigTicket.items.length - 1;
+      downBtn.setAttribute('aria-label', 'Move down');
+      downBtn.addEventListener('click', (event) => {
+        event.stopPropagation();
+        if (index >= bigTicket.items.length - 1) return;
+        [bigTicket.items[index], bigTicket.items[index + 1]] = [bigTicket.items[index + 1], bigTicket.items[index]];
+        item.updatedAt = Date.now();
+        saveBigTicketItems();
+        renderBigTicketItems();
+      });
+
       const del = document.createElement('button');
       del.type = 'button';
       del.className = 'icon-btn delete-btn';
       del.textContent = 'X';
-      del.addEventListener('click', () => {
+      del.addEventListener('click', (event) => {
+        event.stopPropagation();
         bigTicket.items = bigTicket.items.filter((entry) => entry.id !== item.id);
         if (bigTicket.activeId === item.id) bigTicket.activeId = null;
         saveBigTicketItems();
         renderBigTicketItems();
       });
 
-      row.append(cb, summary, del);
+      controls.append(urgentBtn, timeDependentBtn, upBtn, downBtn, del);
+      row.append(number, summary, controls);
       bigTicket.listEl.appendChild(row);
     });
   }
+
 
   function getGeneralNoteGroups() {
     const sorted = [...generalNotes.items].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime() || b.createdAt - a.createdAt);
@@ -1902,7 +1973,7 @@
     const text = htmlToPlainText(html);
     if (!text) return false;
     const now = Date.now();
-    bigTicket.items.unshift({ id: `ticket-${now}-${Math.random().toString(16).slice(2)}`, html, html_inline: richHtmlToInlineHtml(html), text, completed: false, createdAt: now, updatedAt: now });
+    bigTicket.items.unshift({ id: `ticket-${now}-${Math.random().toString(16).slice(2)}`, html, html_inline: richHtmlToInlineHtml(html), text, urgencyLevel: 0, timeDependent: false, createdAt: now, updatedAt: now });
     saveBigTicketItems();
     renderBigTicketItems();
     return true;
